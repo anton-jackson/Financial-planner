@@ -1,0 +1,61 @@
+schema_version: 1
+name: Inheritence + Standard returns
+description: ''
+assumptions:
+  investment_returns:
+    stocks_mean_pct: 8.0
+    stocks_stddev_pct: 16.0
+    bonds_mean_pct: 4.0
+    bonds_stddev_pct: 6.0
+    real_estate_appreciation_pct: 3.5
+  inflation:
+    general_mean_pct: 3.0
+    general_stddev_pct: 1.0
+    college_tuition_pct: 5.0
+    healthcare_pct: 6.0
+  asset_allocation:
+    pre_retirement:
+      stocks_pct: 70.0
+      bonds_pct: 25.0
+      cash_pct: 5.0
+    post_retirement:
+      stocks_pct: 50.0
+      bonds_pct: 40.0
+      cash_pct: 10.0
+    glide_path_start_years_before: 5
+  college:
+    annual_cost_today: 65000.0
+    room_and_board_today: 18000.0
+    financial_aid_annual: 0.0
+    scholarship_annual: 0.0
+  social_security:
+    primary_pia_at_67: 3200.0
+    spouse_pia_at_67: 1800.0
+    claiming_age_primary: 67
+    claiming_age_spouse: 67
+    cola_pct: 2.0
+  healthcare:
+    annual_premium_today: 24000.0
+    annual_out_of_pocket_today: 6000.0
+    pre_medicare_gap_years: 2
+    aca_marketplace_annual: 30000.0
+    medicare_annual: 8000.0
+  large_purchases: []
+  life_events:
+  - name: inheritence
+    year: 2036
+    amount: 350000.0
+    taxable: false
+    tax_rate_override: null
+  - name: inheritence - aj
+    year: 2036
+    amount: 250000.0
+    taxable: false
+    tax_rate_override: null
+  return_profiles:
+    crypto:
+      mean_pct: 12.0
+      stddev_pct: 40.0
+    alternatives:
+      mean_pct: 7.0
+      stddev_pct: 20.0

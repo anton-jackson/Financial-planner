@@ -1,0 +1,74 @@
+schema_version: 1
+
+name: "Bear Case"
+description: "Pessimistic assumptions - low returns, high inflation, higher costs"
+
+assumptions:
+  investment_returns:
+    stocks_mean_pct: 5.0
+    stocks_stddev_pct: 20.0
+    bonds_mean_pct: 2.5
+    bonds_stddev_pct: 7.0
+    real_estate_appreciation_pct: 1.5
+
+  inflation:
+    general_mean_pct: 4.5
+    general_stddev_pct: 1.5
+    college_tuition_pct: 7.0
+    healthcare_pct: 8.0
+
+  asset_allocation:
+    pre_retirement:
+      stocks_pct: 60
+      bonds_pct: 30
+      cash_pct: 10
+    post_retirement:
+      stocks_pct: 40
+      bonds_pct: 45
+      cash_pct: 15
+    glide_path_start_years_before: 7
+
+  college:
+    annual_cost_today: 75000
+    room_and_board_today: 22000
+    financial_aid_annual: 0
+    scholarship_annual: 0
+
+  social_security:
+    primary_pia_at_67: 2800
+    spouse_pia_at_67: 1500
+    claiming_age_primary: 70
+    claiming_age_spouse: 67
+    cola_pct: 1.5
+
+  healthcare:
+    annual_premium_today: 28000
+    annual_out_of_pocket_today: 8000
+    pre_medicare_gap_years: 3
+    aca_marketplace_annual: 36000
+    medicare_annual: 10000
+
+  large_purchases:
+    - name: "Second Home"
+      year: 2029
+      purchase_price: 450000
+      down_payment_pct: 30
+      mortgage_rate_pct: 7.5
+      mortgage_term_years: 30
+      is_rental_conversion: false
+
+    - name: "Primary to Rental Conversion"
+      year: 2031
+      is_rental_conversion: true
+      conversion_cost: 30000
+      monthly_rental_income: 3000
+      vacancy_rate_pct: 12
+      annual_maintenance_pct: 1.5
+      property_management_pct: 12
+      current_mortgage_balance: 280000
+      current_mortgage_payment: 2100
+
+  return_profiles:
+    crypto:
+      mean_pct: 5.0
+      stddev_pct: 50.0
