@@ -54,6 +54,7 @@ Adjust retirement age, expenses, savings rate, or spouse income on the fly witho
 | **Simulation** | Multi-scenario comparison with interactive charts |
 | **Planning** | 2D parameter sweep matrix |
 | **Retirement** | Asset pool breakdown by tax character (traditional/Roth/taxable), liquidity, estate planning view |
+| **AI Advisor** | Chat with an AI agent that can read your profile, run simulations, and answer what-if questions |
 | **How It Works** | Detailed explanation of every calculation |
 
 ## Data Format
@@ -278,6 +279,7 @@ Key endpoints:
 | `/api/v1/simulate/monte-carlo` | POST | Monte Carlo on a named scenario |
 | `/api/v1/simulate/sweep` | POST | 2D parameter sweep matrix |
 | `/api/v1/simulate/compare` | POST | Side-by-side scenario comparison |
+| `/api/v1/agent/chat` | POST | Chat with the AI financial advisor agent |
 
 All simulation endpoints accept optional overrides (retirement age, expenses, savings rate) for what-if analysis without modifying saved data.
 
@@ -297,6 +299,53 @@ backend/           Python + FastAPI
   storage/         Storage abstraction (local filesystem, extensible to cloud)
   data/            YAML flat files (user data + scenarios + cached results)
 ```
+
+## AI Financial Advisor
+
+An optional conversational agent that can read your financial data, run simulations, and answer natural-language questions about your plan. It uses your existing profile, assets, and simulation engine — no separate data needed.
+
+### Setup
+
+1. Get an API key from [console.anthropic.com](https://console.anthropic.com/)
+2. Set the environment variable:
+
+```bash
+# Local development
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Docker
+echo "ANTHROPIC_API_KEY=sk-ant-..." >> .env
+docker compose up --build
+```
+
+3. Navigate to **AI Advisor** in the sidebar
+
+### What it can do
+
+- **Read your profile and assets** — understands your income, savings, expenses, account balances
+- **Run simulations** — deterministic projections and Monte Carlo analysis on demand
+- **What-if analysis** — "What if I retire at 60?" runs both current and modified scenarios, shows the delta
+- **Compare scenarios** — side-by-side base vs bear vs bull analysis
+- **Year-by-year detail** — drill into any specific year's breakdown
+
+### What it can't do (by design)
+
+- **Edit your data** — the agent is read-only. All changes go through the app's forms
+- **Save results** — analysis is ephemeral; run a full simulation from the Simulation page to persist results
+- **Access external data** — no internet lookups; it works entirely with your local data and engine
+
+### Architecture
+
+The agent is a simple tool-use loop (~200 lines total) with no framework dependencies:
+
+```
+backend/agent/
+  tools.py       # 8 tool definitions (profile, assets, simulation, what-if, etc.)
+  executor.py    # Dispatches tool calls to existing engine functions
+  loop.py        # Core loop: send to LLM → execute tools → repeat until text response
+```
+
+The only new dependency is the `anthropic` Python SDK. The agent calls your existing `engine/cashflow.py` and `engine/monte_carlo.py` — no duplicate logic.
 
 ## Tax Engine
 
