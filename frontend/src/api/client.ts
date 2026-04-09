@@ -1,9 +1,25 @@
 const BASE = "/api/v1";
 
+/** Token getter — set by AuthProvider so API calls include the token */
+let _getToken: (() => string | null) | null = null;
+
+export function setTokenGetter(fn: () => string | null) {
+  _getToken = fn;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const token = _getToken?.();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: { ...headers, ...options?.headers },
   });
   if (!res.ok) {
     const body = await res.text();

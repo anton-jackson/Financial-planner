@@ -1,6 +1,8 @@
-.PHONY: dev backend frontend test seed
+.PHONY: dev backend frontend test seed docker-up docker-down docker-build
 
-dev: backend frontend
+# Local dev — runs both in parallel
+dev:
+	$(MAKE) backend & $(MAKE) frontend & wait
 
 backend:
 	cd backend && ../.venv/bin/uvicorn main:app --reload --port 8000
@@ -13,3 +15,13 @@ test:
 
 seed:
 	@echo "Seed data already in backend/data/"
+
+# Docker
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up --build
+
+docker-down:
+	docker compose down

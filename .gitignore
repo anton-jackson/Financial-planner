@@ -27,3 +27,6 @@ backend/data/results/
 # User data (personal financial info)
 backend/data/profile.yaml
 backend/data/assets.yaml
+
+# Docker volume data (user-specific)
+data/
