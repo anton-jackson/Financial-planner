@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Target,
   DollarSign,
+  MessageCircle,
 } from "lucide-react";
 
 const links = [
@@ -22,6 +23,7 @@ const links = [
   { to: "/retirement", label: "Retirement", icon: PiggyBank },
   { to: "/scenarios", label: "Scenarios", icon: Layers },
   { to: "/simulation", label: "Run Simulation", icon: Play },
+  { to: "/advisor", label: "AI Advisor", icon: MessageCircle },
   { to: "/how-it-works", label: "How It Works", icon: HelpCircle },
 ];
 

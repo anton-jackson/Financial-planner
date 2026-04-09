@@ -5,6 +5,7 @@ from api.profile import router as profile_router
 from api.scenarios import router as scenarios_router
 from api.assets import router as assets_router
 from api.simulation import router as simulation_router
+from api.agent import router as agent_router
 from auth.middleware import require_auth
 
 router = APIRouter()
@@ -35,5 +36,11 @@ router.include_router(
     simulation_router,
     prefix="/simulate",
     tags=["simulation"],
+    dependencies=[Depends(require_auth)],
+)
+router.include_router(
+    agent_router,
+    prefix="/agent",
+    tags=["agent"],
     dependencies=[Depends(require_auth)],
 )

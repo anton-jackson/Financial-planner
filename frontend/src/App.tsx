@@ -13,6 +13,7 @@ import { RetirementPage } from "./pages/RetirementPage";
 import { SimulationPage } from "./pages/SimulationPage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { PlanningPage } from "./pages/PlanningPage";
+import { AgentPage } from "./pages/AgentPage";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
 import { setTokenGetter } from "./api/client";
@@ -78,6 +79,7 @@ export default function App() {
                   <Route path="/planning" element={<PlanningPage />} />
                   <Route path="/scenarios" element={<ScenariosPage />} />
                   <Route path="/simulation" element={<SimulationPage />} />
+                  <Route path="/advisor" element={<AgentPage />} />
                   <Route path="/how-it-works" element={<HowItWorksPage />} />
                 </Route>
               </Routes>

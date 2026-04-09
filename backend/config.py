@@ -9,3 +9,4 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 CORS_ORIGINS = os.environ.get(
     "CORS_ORIGINS", "http://localhost:5173,http://localhost:80,http://localhost"
 ).split(",")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
