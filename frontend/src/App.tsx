@@ -13,7 +13,7 @@ import { RetirementPage } from "./pages/RetirementPage";
 import { SimulationPage } from "./pages/SimulationPage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { PlanningPage } from "./pages/PlanningPage";
-import { AgentPage } from "./pages/AgentPage";
+import { AgentProvider } from "./components/agent/AgentContext";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
 import { setTokenGetter } from "./api/client";
@@ -67,23 +67,24 @@ export default function App() {
         <AuthProvider>
           <TokenBridge />
           <AuthGate>
-            <BrowserRouter>
-              <Routes>
-                <Route element={<AppShell />}>
-                  <Route path="/" element={<DashboardPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/finances" element={<BasicFinancesPage />} />
-                  <Route path="/assets" element={<AssetsPage />} />
-                  <Route path="/college" element={<CollegePlanningPage />} />
-                  <Route path="/retirement" element={<RetirementPage />} />
-                  <Route path="/planning" element={<PlanningPage />} />
-                  <Route path="/scenarios" element={<ScenariosPage />} />
-                  <Route path="/simulation" element={<SimulationPage />} />
-                  <Route path="/advisor" element={<AgentPage />} />
-                  <Route path="/how-it-works" element={<HowItWorksPage />} />
-                </Route>
-              </Routes>
-            </BrowserRouter>
+            <AgentProvider>
+              <BrowserRouter>
+                <Routes>
+                  <Route element={<AppShell />}>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/finances" element={<BasicFinancesPage />} />
+                    <Route path="/assets" element={<AssetsPage />} />
+                    <Route path="/college" element={<CollegePlanningPage />} />
+                    <Route path="/retirement" element={<RetirementPage />} />
+                    <Route path="/planning" element={<PlanningPage />} />
+                    <Route path="/scenarios" element={<ScenariosPage />} />
+                    <Route path="/simulation" element={<SimulationPage />} />
+                    <Route path="/how-it-works" element={<HowItWorksPage />} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+            </AgentProvider>
           </AuthGate>
         </AuthProvider>
       </QueryClientProvider>
