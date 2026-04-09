@@ -23,6 +23,7 @@ Thumbs.db
 .env
 .env.local
 backend/data/results/
+backend/data/agent_sandbox/
 
 # User data (personal financial info)
 backend/data/profile.yaml

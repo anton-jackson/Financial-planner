@@ -5,6 +5,7 @@ import copy
 from engine.cashflow import project_cashflows
 from engine.monte_carlo import run_monte_carlo
 from storage.local import LocalFileStorage
+from agent.sandbox import AgentSandbox
 
 
 def execute_tool(
@@ -12,7 +13,11 @@ def execute_tool(
     tool_input: dict,
     storage: LocalFileStorage,
 ) -> dict:
-    """Execute a named tool and return the result as a dict."""
+    """Execute a named tool and return the result as a dict.
+
+    Tools that need write access should use AgentSandbox(storage),
+    which confines writes to data/agent_sandbox/.
+    """
 
     if name == "get_profile_summary":
         return _get_profile_summary(storage)
