@@ -11,6 +11,7 @@ import {
   Target,
   DollarSign,
   MessageCircle,
+  BarChart3,
 } from "lucide-react";
 import { useAgent } from "../agent/AgentContext";
 
@@ -19,6 +20,7 @@ const links = [
   { to: "/profile", label: "Profile", icon: User },
   { to: "/finances", label: "Basic Finances", icon: DollarSign },
   { to: "/assets", label: "Assets & Liabilities", icon: Wallet },
+  { to: "/holdings", label: "Portfolio Holdings", icon: BarChart3 },
   { to: "/college", label: "College Planning", icon: GraduationCap },
   { to: "/planning", label: "Planning", icon: Target },
   { to: "/retirement", label: "Retirement", icon: PiggyBank },

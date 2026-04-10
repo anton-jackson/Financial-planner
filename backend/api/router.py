@@ -4,6 +4,7 @@ from api.auth import router as auth_router
 from api.profile import router as profile_router
 from api.scenarios import router as scenarios_router
 from api.assets import router as assets_router
+from api.holdings import router as holdings_router
 from api.simulation import router as simulation_router
 from api.agent import router as agent_router
 from auth.middleware import require_auth
@@ -30,6 +31,12 @@ router.include_router(
     assets_router,
     prefix="/assets",
     tags=["assets"],
+    dependencies=[Depends(require_auth)],
+)
+router.include_router(
+    holdings_router,
+    prefix="/holdings",
+    tags=["holdings"],
     dependencies=[Depends(require_auth)],
 )
 router.include_router(
