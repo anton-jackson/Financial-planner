@@ -7,6 +7,7 @@ from api.assets import router as assets_router
 from api.holdings import router as holdings_router
 from api.simulation import router as simulation_router
 from api.agent import router as agent_router
+from api.onboarding import router as onboarding_router
 from auth.middleware import require_auth
 
 router = APIRouter()
@@ -49,5 +50,11 @@ router.include_router(
     agent_router,
     prefix="/agent",
     tags=["agent"],
+    dependencies=[Depends(require_auth)],
+)
+router.include_router(
+    onboarding_router,
+    prefix="/onboarding",
+    tags=["onboarding"],
     dependencies=[Depends(require_auth)],
 )

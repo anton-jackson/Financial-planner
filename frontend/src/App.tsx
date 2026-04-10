@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GoogleOAuthProvider } from "@react-oauth/google";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -16,6 +16,8 @@ import { PlanningPage } from "./pages/PlanningPage";
 import { AgentProvider } from "./components/agent/AgentContext";
 import { HoldingsPage } from "./pages/HoldingsPage";
 import { WindfallsPage } from "./pages/WindfallsPage";
+import { OnboardingWizard } from "./pages/OnboardingWizard";
+import { onboardingApi } from "./api/onboarding";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
 import { setTokenGetter } from "./api/client";
@@ -62,6 +64,34 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Shows onboarding wizard if no profile exists yet */
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["onboarding-status"],
+    queryFn: onboardingApi.status,
+  });
+
+  const handleComplete = useCallback(() => {
+    // Invalidate everything so the app reloads fresh data
+    qc.invalidateQueries();
+  }, [qc]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-slate-400 text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (data?.needs_onboarding) {
+    return <OnboardingWizard onComplete={handleComplete} />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
@@ -69,26 +99,28 @@ export default function App() {
         <AuthProvider>
           <TokenBridge />
           <AuthGate>
-            <AgentProvider>
-              <BrowserRouter>
-                <Routes>
-                  <Route element={<AppShell />}>
-                    <Route path="/" element={<DashboardPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/finances" element={<BasicFinancesPage />} />
-                    <Route path="/assets" element={<AssetsPage />} />
-                    <Route path="/holdings" element={<HoldingsPage />} />
-                    <Route path="/windfalls" element={<WindfallsPage />} />
-                    <Route path="/college" element={<CollegePlanningPage />} />
-                    <Route path="/retirement" element={<RetirementPage />} />
-                    <Route path="/planning" element={<PlanningPage />} />
-                    <Route path="/scenarios" element={<ScenariosPage />} />
-                    <Route path="/simulation" element={<SimulationPage />} />
-                    <Route path="/how-it-works" element={<HowItWorksPage />} />
-                  </Route>
-                </Routes>
-              </BrowserRouter>
-            </AgentProvider>
+            <OnboardingGate>
+              <AgentProvider>
+                <BrowserRouter>
+                  <Routes>
+                    <Route element={<AppShell />}>
+                      <Route path="/" element={<DashboardPage />} />
+                      <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="/finances" element={<BasicFinancesPage />} />
+                      <Route path="/assets" element={<AssetsPage />} />
+                      <Route path="/holdings" element={<HoldingsPage />} />
+                      <Route path="/windfalls" element={<WindfallsPage />} />
+                      <Route path="/college" element={<CollegePlanningPage />} />
+                      <Route path="/retirement" element={<RetirementPage />} />
+                      <Route path="/planning" element={<PlanningPage />} />
+                      <Route path="/scenarios" element={<ScenariosPage />} />
+                      <Route path="/simulation" element={<SimulationPage />} />
+                      <Route path="/how-it-works" element={<HowItWorksPage />} />
+                    </Route>
+                  </Routes>
+                </BrowserRouter>
+              </AgentProvider>
+            </OnboardingGate>
           </AuthGate>
         </AuthProvider>
       </QueryClientProvider>
