@@ -10,13 +10,17 @@ import {
   HelpCircle,
   Target,
   DollarSign,
+  MessageCircle,
+  BarChart3,
 } from "lucide-react";
+import { useAgent } from "../agent/AgentContext";
 
 const links = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/profile", label: "Profile", icon: User },
   { to: "/finances", label: "Basic Finances", icon: DollarSign },
   { to: "/assets", label: "Assets & Liabilities", icon: Wallet },
+  { to: "/holdings", label: "Portfolio Holdings", icon: BarChart3 },
   { to: "/college", label: "College Planning", icon: GraduationCap },
   { to: "/planning", label: "Planning", icon: Target },
   { to: "/retirement", label: "Retirement", icon: PiggyBank },
@@ -26,6 +30,8 @@ const links = [
 ];
 
 export function Sidebar() {
+  const { toggle, isOpen } = useAgent();
+
   return (
     <aside className="w-64 min-h-screen bg-slate-800 text-slate-200 flex flex-col">
       <div className="p-4 border-b border-slate-700">
@@ -49,6 +55,20 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <div className="p-2 border-t border-slate-700">
+        <button
+          onClick={toggle}
+          className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm
+                      transition-colors w-full ${
+                        isOpen
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+                      }`}
+        >
+          <MessageCircle size={18} />
+          AI Advisor
+        </button>
+      </div>
     </aside>
   );
 }

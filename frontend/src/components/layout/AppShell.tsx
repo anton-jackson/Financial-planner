@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { AgentPanel } from "../agent/AgentPanel";
 
 export function AppShell() {
   return (
@@ -8,6 +9,7 @@ export function AppShell() {
       <main className="flex-1 p-8 overflow-auto">
         <Outlet />
       </main>
+      <AgentPanel />
     </div>
   );
 }
