@@ -13,6 +13,7 @@ import { RetirementPage } from "./pages/RetirementPage";
 import { SimulationPage } from "./pages/SimulationPage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { PlanningPage } from "./pages/PlanningPage";
+import { HoldingsPage } from "./pages/HoldingsPage";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { LoginPage } from "./auth/LoginPage";
 import { setTokenGetter } from "./api/client";
@@ -73,6 +74,7 @@ export default function App() {
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/finances" element={<BasicFinancesPage />} />
                   <Route path="/assets" element={<AssetsPage />} />
+            <Route path="/holdings" element={<HoldingsPage />} />
                   <Route path="/college" element={<CollegePlanningPage />} />
                   <Route path="/retirement" element={<RetirementPage />} />
                   <Route path="/planning" element={<PlanningPage />} />

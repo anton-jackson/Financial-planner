@@ -26,11 +26,13 @@ function AssetCard({
   index,
   onChange,
   onPropertyChange,
+  onRemove,
 }: {
   asset: Asset;
   index: number;
   onChange: (index: number, field: string, value: string | number) => void;
   onPropertyChange: (index: number, prop: string, value: string | number | boolean) => void;
+  onRemove: (index: number) => void;
 }) {
   const isRealEstate = asset.type === "real_estate";
   const props = asset.properties;
@@ -40,9 +42,18 @@ function AssetCard({
     <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
       <div className="flex justify-between items-center mb-3">
         <h4 className="text-sm font-medium text-slate-600">{asset.name}</h4>
-        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">
-          {TYPE_LABELS[asset.type] ?? asset.type}
-        </span>
+        <div className="flex items-center gap-2">
+          <select
+            className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full border-none"
+            value={asset.type}
+            onChange={(e) => onChange(index, "type", e.target.value)}
+          >
+            {Object.entries(TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          <button onClick={() => onRemove(index)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Name">
@@ -154,6 +165,45 @@ export function AssetsPage() {
     setAssetsDirty(true);
   };
 
+  const addAsset = (type: string) => {
+    const defaultNames: Record<string, string> = {
+      traditional_401k: "Traditional 401k",
+      roth_401k: "Roth 401k",
+      traditional_ira: "Traditional IRA",
+      roth_ira: "Roth IRA",
+      hsa: "HSA",
+      taxable_brokerage: "Taxable Brokerage",
+      "529": "529 Plan",
+      real_estate: "Real Estate",
+      crypto: "Crypto",
+      other: "Other",
+    };
+    const newAsset: Asset = {
+      name: defaultNames[type] ?? type,
+      type,
+      balance: 0,
+      return_profile: type === "real_estate" ? "real_estate" : "stocks_bonds",
+      properties: type === "real_estate" ? {
+        mortgage_balance: 0, mortgage_rate_pct: 0, monthly_payment: 0,
+        mortgage_end_date: "", annual_property_tax: 0, annual_insurance: 0,
+        annual_carrying_cost: 0, appreciation_rate_pct: 3, is_rental: false,
+      } : {},
+    };
+    setLocalAssets((prev) => {
+      if (!prev) return prev;
+      return { ...prev, assets: [...prev.assets, newAsset] };
+    });
+    setAssetsDirty(true);
+  };
+
+  const removeAsset = (index: number) => {
+    setLocalAssets((prev) => {
+      if (!prev) return prev;
+      return { ...prev, assets: prev.assets.filter((_, i) => i !== index) };
+    });
+    setAssetsDirty(true);
+  };
+
   // Vehicle helpers
   const addExistingVehicle = () => {
     setLocalProfile((prev) => {
@@ -259,18 +309,38 @@ export function AssetsPage() {
 
       {/* Accounts */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-3">Accounts</h3>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-semibold">Accounts</h3>
+          <div className="relative group">
+            <button className="text-sm text-blue-600 hover:text-blue-800">+ Add Account</button>
+            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 w-48">
+              {Object.entries(TYPE_LABELS).map(([type, label]) => (
+                <button
+                  key={type}
+                  onClick={() => addAsset(type)}
+                  className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <SectionHelp
-          summary="Investment accounts and property. Non-real-estate accounts form your liquid portfolio. Real estate is tracked as illiquid equity."
+          summary="Investment accounts and property. Add as many accounts as you have — multiple 401k's, IRAs, brokerage accounts, etc."
           details={[
             "Liquid portfolio = sum of all non-real-estate balances. Returns based on the scenario's stock/bond/cash allocation.",
             "Real estate appreciates separately. Mortgage is amortized monthly. Equity = value - mortgage.",
+            "Crypto accounts can hold individual coins — enter holdings on the Portfolio Holdings page.",
           ]}
         />
         <div className="flex flex-col gap-4">
           {localAssets.assets.map((asset, i) => (
-            <AssetCard key={i} asset={asset} index={i} onChange={onAssetChange} onPropertyChange={onPropertyChange} />
+            <AssetCard key={i} asset={asset} index={i} onChange={onAssetChange} onPropertyChange={onPropertyChange} onRemove={removeAsset} />
           ))}
+          {localAssets.assets.length === 0 && (
+            <div className="text-sm text-slate-400 text-center py-4">No accounts — add one above</div>
+          )}
         </div>
       </div>
 
