@@ -15,24 +15,39 @@ Deploy Financial Planner to Google Cloud Run. Each instance is a standalone serv
    - Create an OAuth 2.0 Client ID (Web application type)
    - You'll add authorized JavaScript origins after deploying (the script tells you what to add)
 
-## Quick Start
+## Quick Start (no repo clone needed)
+
+You don't need to clone the repo. Cloud Build pulls the source directly from GitHub.
 
 ```bash
-# 1. Copy the config template
-cp deploy/config.example.env deploy/myname.env
+# 1. Download the deploy script and config template
+curl -O https://raw.githubusercontent.com/anton-jackson/Financial-planner/main/deploy/remote-deploy.sh
+curl -O https://raw.githubusercontent.com/anton-jackson/Financial-planner/main/deploy/config.example.env
 
-# 2. Fill in your values
+# 2. Create your config
+cp config.example.env myname.env
+
+# 3. Fill in your values
 #    - GCP_PROJECT: your GCP project ID (run: gcloud projects list)
 #    - INSTANCE_NAME: short name like "me" or "alice"
 #    - GOOGLE_CLIENT_ID: from step 3 of Prerequisites
 #    - ALLOWED_EMAIL: the Google account email for this instance
+vim myname.env
+
+# 4. Deploy
+bash remote-deploy.sh myname.env
+
+# 5. Follow the post-deploy instructions printed by the script
+```
+
+## Deploy from Local Clone
+
+If you've cloned the repo (e.g., for development), use the local deploy script instead:
+
+```bash
+cp deploy/config.example.env deploy/myname.env
 vim deploy/myname.env
-
-# 3. Deploy
 ./deploy/deploy.sh deploy/myname.env
-
-# 4. Follow the post-deploy instructions printed by the script
-#    (add OAuth redirect URI, create DNS record if using custom domain)
 ```
 
 ## What the Script Does
