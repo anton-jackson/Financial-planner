@@ -22,6 +22,10 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Deploy configs (contain API keys and emails)
+deploy/*.env
+!deploy/config.example.env
 backend/data/results/
 backend/data/agent_sandbox/
 
