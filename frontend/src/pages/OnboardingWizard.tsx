@@ -29,6 +29,9 @@ interface WizardState {
   annual_ira_roth: number;
   annual_hsa: number;
   additional_monthly_savings: number;
+  spouse_contribution_rate_pct: number;
+  spouse_employer_match_pct: number;
+  spouse_ira_roth: number;
 
   // Step 3: Money Out
   annual_expenses: number;
@@ -73,6 +76,9 @@ const INITIAL: WizardState = {
   annual_ira_roth: 0,
   annual_hsa: 0,
   additional_monthly_savings: 0,
+  spouse_contribution_rate_pct: 10,
+  spouse_employer_match_pct: 3,
+  spouse_ira_roth: 0,
 
   annual_expenses: 80000,
   retirement_reduction_pct: 20,
@@ -412,7 +418,7 @@ function StepMoneyIn({
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <h3 className="text-sm font-semibold text-slate-600 mb-3">Retirement Savings</h3>
+        <h3 className="text-sm font-semibold text-slate-600 mb-3">Your Retirement Savings</h3>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="401k Contribution %" hint="% of salary you contribute">
             <Input type="number" step="1" value={data.contribution_rate_pct} onChange={(e) => set("contribution_rate_pct", num(e))} />
@@ -427,6 +433,23 @@ function StepMoneyIn({
             <Input type="number" value={data.annual_hsa} onChange={(e) => set("annual_hsa", num(e))} />
           </FormField>
         </div>
+
+        {data.has_spouse && (
+          <>
+            <h3 className="text-sm font-semibold text-slate-600 mb-3 mt-6">Spouse Retirement Savings</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <FormField label="401k Contribution %" hint="% of spouse salary">
+                <Input type="number" step="1" value={data.spouse_contribution_rate_pct} onChange={(e) => set("spouse_contribution_rate_pct", num(e))} />
+              </FormField>
+              <FormField label="Employer Match %">
+                <Input type="number" step="0.5" value={data.spouse_employer_match_pct} onChange={(e) => set("spouse_employer_match_pct", num(e))} />
+              </FormField>
+              <FormField label="Annual Roth IRA">
+                <Input type="number" value={data.spouse_ira_roth} onChange={(e) => set("spouse_ira_roth", num(e))} />
+              </FormField>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -581,8 +604,10 @@ function StepReview({ data }: { data: WizardState }) {
 
   const homeEquity = data.owns_home ? data.home_value - data.mortgage_balance : 0;
   const totalIncome = data.base_salary + (data.has_spouse ? data.spouse_salary : 0);
-  const annual401k = totalIncome * (data.contribution_rate_pct / 100);
-  const annualSavings = annual401k + data.annual_ira_roth + data.annual_hsa + data.additional_monthly_savings * 12;
+  const primary401k = data.base_salary * (data.contribution_rate_pct / 100);
+  const spouse401k = data.has_spouse ? data.spouse_salary * (data.spouse_contribution_rate_pct / 100) : 0;
+  const spouseIra = data.has_spouse ? data.spouse_ira_roth : 0;
+  const annualSavings = primary401k + spouse401k + data.annual_ira_roth + spouseIra + data.annual_hsa + data.additional_monthly_savings * 12;
 
   return (
     <div className="space-y-6">
@@ -595,7 +620,7 @@ function StepReview({ data }: { data: WizardState }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <SummaryCard label="Total Income" value={`$${totalIncome.toLocaleString()}/yr`} />
+        <SummaryCard label="Total Household Income" value={`$${totalIncome.toLocaleString()}/yr`} />
         <SummaryCard label="Annual Savings" value={`$${Math.round(annualSavings).toLocaleString()}/yr`} />
         <SummaryCard label="Investment Accounts" value={`$${totalAccounts.toLocaleString()}`} />
         <SummaryCard label="Home Equity" value={data.owns_home ? `$${homeEquity.toLocaleString()}` : "Renting"} />
@@ -604,6 +629,15 @@ function StepReview({ data }: { data: WizardState }) {
           value={`Age ${data.retirement_age} (${data.birth_year + data.retirement_age})`}
         />
         <SummaryCard label="Annual Spending" value={`$${data.annual_expenses.toLocaleString()}/yr`} />
+        {data.has_spouse && (
+          <SummaryCard
+            label="Spouse Retirement"
+            value={`Age ${data.spouse_retirement_age} (${data.spouse_birth_year + data.spouse_retirement_age})`}
+          />
+        )}
+        {data.num_children > 0 && (
+          <SummaryCard label="Children" value={`${data.num_children}`} />
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -705,17 +739,29 @@ function buildProfile(d: WizardState) {
         annual_hsa: d.annual_hsa,
         additional_monthly_savings: d.additional_monthly_savings,
       },
-      spouse: {
-        contribution_rate_pct: 0,
-        irs_401k_limit: 24500,
-        annual_401k_traditional: 0,
-        annual_401k_roth: 0,
-        employer_match_pct: 0,
-        annual_ira_traditional: 0,
-        annual_ira_roth: 0,
-        annual_hsa: 0,
-        additional_monthly_savings: 0,
-      },
+      spouse: d.has_spouse
+        ? {
+            contribution_rate_pct: d.spouse_contribution_rate_pct,
+            irs_401k_limit: 24500,
+            annual_401k_traditional: 0,
+            annual_401k_roth: 0,
+            employer_match_pct: d.spouse_employer_match_pct,
+            annual_ira_traditional: 0,
+            annual_ira_roth: d.spouse_ira_roth,
+            annual_hsa: 0,
+            additional_monthly_savings: 0,
+          }
+        : {
+            contribution_rate_pct: 0,
+            irs_401k_limit: 24500,
+            annual_401k_traditional: 0,
+            annual_401k_roth: 0,
+            employer_match_pct: 0,
+            annual_ira_traditional: 0,
+            annual_ira_roth: 0,
+            annual_hsa: 0,
+            additional_monthly_savings: 0,
+          },
       monthly_529_per_child: 0,
     },
     expenses: {
