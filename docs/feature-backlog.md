@@ -1,25 +1,40 @@
 # Feature Backlog
 
+## Completed
+
+- **AI Advisor Agent** — Conversational agent with tool-use loop, collapsible side panel, sandbox for write output. See `docs/agent-architecture.md`.
+- **Portfolio Holdings & Rebalance Calculator** — Per-account holdings entry, live market data via yfinance, cross-account rebalance calculator with tax-aware trade suggestions.
+- **Windfalls & Inheritances** — Permanent profile-level cash events (one-time and recurring) included in every simulation. Separate from scenario life events.
+
+---
+
 ## Planned — Cloud Deployment
 - **Cloud Run deploy (P3)** — one instance per user, deploy script, GCS-FUSE storage. Last step before sharing with friends. See `docs/deployment-spec.md`.
 
+---
+
 ## Feature Ideas
 
-### Granular Portfolio Entry + Rebalance Calculator
-Enter individual holdings (stocks, bonds, funds, ETFs) within each account. System fetches live market prices and auto-calculates current values. Replaces the current single-balance-per-account model with a holdings-level view. Key goal: **reduce data entry**.
+### First-Time Use / Onboarding
+Guided setup flow for new users who have no profile or assets configured. Currently the app drops you on an empty dashboard with no guidance — you have to know to go to Profile, then Finances, then Assets, etc.
 
-**Market data:** Use free API (Yahoo Finance via `yfinance`, or Alpha Vantage) to fetch current prices by ticker. User enters ticker + shares, system does the rest.
+**Core flow:**
+1. Welcome screen — explain what the app does, what data is needed
+2. Profile basics — name, birth year, retirement age, state, spouse (if applicable)
+3. Income — salary, raises, bonus, spouse income
+4. Savings — 401k rate, IRA, HSA, additional savings
+5. Expenses — annual base spending, per-child costs
+6. Assets — walk through adding accounts (401k, IRA, brokerage, real estate)
+7. First simulation — auto-run baseline and show the dashboard with results
 
-**Rebalance calculator:** User sets target allocation (e.g., 70% US equity, 20% intl, 10% bonds). App shows current vs. target, calculates the trades needed to rebalance — per account, tax-aware (prefer rebalancing in tax-advantaged accounts to avoid triggering gains).
-
-**Cost basis tracking:** Optional — user can enter per-lot cost basis for tax-aware rebalancing. Also useful for the AI sidecar (tax loss harvesting suggestions, optimal lot selection).
-
-**Rebalancing scope:** Cross-account — treat the entire portfolio as one allocation. User enters target percentages, software calculates trades needed. Prefer trades in tax-advantaged accounts to avoid triggering gains in taxable.
-
-Considerations:
-- Asset classification — map tickers to asset classes (equity/bond/intl/etc.), possibly via fund category data
-- Frequency — on-demand rebalance suggestions, not auto-trading
-- Target allocation establishment is a good candidate for the AI sidecar (see below)
+**Considerations:**
+- Detect first-time use by checking if `profile.yaml` exists (backend already returns 404)
+- Stepper/wizard UI with progress indicator — not a single giant form
+- Allow skipping sections (fill in later)
+- Pre-populate sensible defaults (retirement age 65, 3% raises, base scenario assumptions)
+- At the end, save profile + assets + copy example scenarios, then redirect to dashboard
+- Could also offer "import from template" (single earner, dual income, tech comp, etc.)
+- Should the AI advisor offer to help with onboarding? Could be a natural first conversation
 
 ### Periodic Status Snapshots
 Auto-save a point-in-time snapshot of profile + assets + net worth at regular intervals. Creates a historical record you can look back on.
@@ -30,17 +45,20 @@ Considerations:
 - Diff view — show what changed between snapshots?
 - May be more useful once the tool is in daily use vs. setup phase
 
-### Side-by-Side Scenario Comparison (from prior session)
+### Side-by-Side Scenario Comparison
 Visual overlay of multiple scenario trajectories on one chart. Already partially supported via `/simulate/compare` endpoint — needs dedicated UI.
 
-### AI Advisor Sidecar (from prior session)
-LLM agent that reads the flat files, runs simulations via the API, and provides natural language planning advice. Deferred — flat-file architecture was chosen specifically to enable this.
+### Cost Basis Tracking
+Per-lot cost basis entry for tax-aware rebalancing. Useful for the AI advisor (tax loss harvesting suggestions, optimal lot selection for sales).
+
+### Phase-Based Expense/Savings Overrides
+Model life phases with different spending/saving profiles (e.g., kids at home, empty nest, early retirement, late retirement). Currently modeled as a single retirement reduction percentage.
 
 ---
 
-## Features Best Served by AI Agent Sidecar
+## Features Best Served by AI Agent
 
-These features are better handled by a local AI agent (Claude Code or similar) reading the flat files and calling the API, rather than being built into the app UI. The agent can reason about the user's full financial picture, ask clarifying questions, and explain its recommendations.
+These features are better handled by the AI advisor agent reading user data and calling the simulation engine, rather than being built as static UI. The agent can reason about the user's full financial picture, ask clarifying questions, and explain its recommendations.
 
 | Feature | Why agent is better |
 |---------|-------------------|
@@ -53,16 +71,16 @@ These features are better handled by a local AI agent (Claude Code or similar) r
 | **Roth conversion ladder planning** | Multi-year optimization across tax brackets — agent can model and explain |
 | **Estate planning guidance** | Trust structures, beneficiary designations, step-up basis — needs explanation, not just numbers |
 | **Annual financial review** | Compare snapshots over time, flag drift, suggest adjustments |
+| **Return on capital analysis** | "Sell house vs. rent it out" — agent can model both scenarios, identify breakeven appreciation rates |
+| **Stock sale tax optimization** | Agent can analyze lots, model tax impact across years, suggest optimal sale timing |
 
-These features work because the agent has full read/write access to the YAML files and can run simulations via the API to test its recommendations before presenting them.
-
-| **Local↔Cloud sync** | Agent can pull latest from cloud, do deep analysis locally, push changes back — best of both worlds |
+These features work because the agent has read access to all user data and can run simulations via the engine to test its recommendations before presenting them. Output is written to `data/agent_sandbox/` for downstream UI to consume.
 
 ---
 
-## Local ↔ Cloud Run Sync
+## Local <> Cloud Run Sync
 
-Enable bidirectional sync between a local copy of the flat files and the Cloud Run instance. This unlocks a powerful workflow: use the cloud app day-to-day from any device, but pull data locally when you want to run the AI agent sidecar.
+Enable bidirectional sync between a local copy of the flat files and the Cloud Run instance. This unlocks a powerful workflow: use the cloud app day-to-day from any device, but pull data locally when you want to run the AI agent.
 
 **Workflow:**
 1. `finplan pull` — download YAML files from your Cloud Run instance to local `backend/data/`
@@ -76,7 +94,4 @@ Enable bidirectional sync between a local copy of the flat files and the Cloud R
 
 **Conflict handling:** Last-write-wins is fine for single-user instances. Could add a schema_version or timestamp check to warn if cloud data changed since last pull.
 
-**Why this matters:** The AI sidecar needs local file access to be most useful. Sync bridges the gap between cloud convenience and local agent power.
-
-### Phase-Based Expense/Savings Overrides (discussed conceptually)
-Model life phases with different spending/saving profiles (e.g., kids at home, empty nest, early retirement, late retirement). Currently modeled as a single retirement reduction percentage.
+**Why this matters:** The AI agent needs local file access to be most useful. Sync bridges the gap between cloud convenience and local agent power.
