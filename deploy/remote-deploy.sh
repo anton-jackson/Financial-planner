@@ -209,35 +209,51 @@ gcloud run services update "$SERVICE_NAME" \
   --update-env-vars "CORS_ORIGINS=${CORS_FINAL}" \
   --quiet
 
-# ─── Custom domain ──────────────────────────────────────────────────
+# ─── Extract hostname for DNS ────────────────────────────────────────
 
-if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
-  echo "→ Mapping custom domain: ${CUSTOM_DOMAIN}"
-  gcloud run domain-mappings create \
-    --service="$SERVICE_NAME" \
-    --domain="$CUSTOM_DOMAIN" \
-    --region="$GCP_REGION" \
-    --quiet 2>/dev/null || true
-fi
+# Cloud Run URL: https://finplanner-alice-abc123-uc.a.run.app
+# Hostname for CNAME: finplanner-alice-abc123-uc.a.run.app
+CLOUD_RUN_HOST="${SERVICE_URL#https://}"
 
 # ─── Done ────────────────────────────────────────────────────────────
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ✓ Deployed: ${SERVICE_URL}"
 echo ""
-echo "  Next steps:"
+echo "  Instance:  ${INSTANCE_NAME}"
+echo "  Service:   ${SERVICE_NAME}"
+echo "  URL:       ${SERVICE_URL}"
+echo "  Hostname:  ${CLOUD_RUN_HOST}"
+echo "  Bucket:    gs://${BUCKET_NAME}"
 echo ""
-echo "  1. Add authorized JavaScript origins to your Google OAuth client:"
-echo "     → ${SERVICE_URL}"
-[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "     → https://${CUSTOM_DOMAIN}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "     Go to: https://console.cloud.google.com/apis/credentials"
-echo "     Edit your OAuth 2.0 Client ID → Authorized JavaScript origins"
+echo "  NEXT STEPS"
+echo ""
+echo "  1. Google OAuth — add authorized JavaScript origins:"
+echo ""
+echo "     ${SERVICE_URL}"
+[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "     https://${CUSTOM_DOMAIN}"
+echo ""
+echo "     → https://console.cloud.google.com/apis/credentials"
+echo "     → Edit OAuth 2.0 Client ID → Authorized JavaScript origins"
 echo ""
 if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
-  echo "  2. Create a DNS CNAME record:"
-  echo "     ${CUSTOM_DOMAIN}  →  ghs.googlehosted.com."
+  echo "  2. DNS — create a CNAME record for your subdomain:"
+  echo ""
+  echo "     Record type:  CNAME"
+  echo "     Name:         ${CUSTOM_DOMAIN}"
+  echo "     Value:        ${CLOUD_RUN_HOST}"
+  echo ""
+  echo "     In AWS Route 53:"
+  echo "       - Open your hosted zone"
+  echo "       - Create Record → Simple routing"
+  echo "       - Record name: ${CUSTOM_DOMAIN%%.*}"
+  echo "       - Record type: CNAME"
+  echo "       - Value: ${CLOUD_RUN_HOST}"
+  echo "       - TTL: 300"
+  echo ""
+  echo "     SSL is automatic — Cloud Run handles HTTPS."
   echo ""
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

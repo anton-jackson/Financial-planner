@@ -170,58 +170,57 @@ SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
   --format="value(status.url)")
 
 # Update CORS with actual URL now that we know it
-ENV_VARS_FINAL="AUTH_ENABLED=true"
-ENV_VARS_FINAL+=",ALLOWED_EMAIL=${ALLOWED_EMAIL}"
-ENV_VARS_FINAL+=",GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
-ENV_VARS_FINAL+=",DATA_DIR=/app/data"
-ENV_VARS_FINAL+=",STORAGE_BACKEND=local"
-ENV_VARS_FINAL+=",CORS_ORIGINS=${SERVICE_URL}"
-[[ -n "${CUSTOM_DOMAIN:-}" ]] && ENV_VARS_FINAL+=",CORS_ORIGINS=${SERVICE_URL},https://${CUSTOM_DOMAIN}"
-[[ -n "${ANTHROPIC_API_KEY:-}" ]] && ENV_VARS_FINAL+=",ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+CORS_FINAL="${SERVICE_URL}"
+[[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS_FINAL+=",https://${CUSTOM_DOMAIN}"
 
 gcloud run services update "$SERVICE_NAME" \
   --region="$GCP_REGION" \
-  --set-env-vars "$ENV_VARS_FINAL" \
+  --update-env-vars "CORS_ORIGINS=${CORS_FINAL}" \
   --quiet
 
-# ─── Custom domain mapping ──────────────────────────────────────────
+# ─── Extract hostname for DNS ────────────────────────────────────────
 
-if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
-  echo "→ Mapping custom domain: ${CUSTOM_DOMAIN}"
-  if ! gcloud run domain-mappings describe \
-      --domain="$CUSTOM_DOMAIN" --region="$GCP_REGION" --quiet 2>/dev/null; then
-    gcloud run domain-mappings create \
-      --service="$SERVICE_NAME" \
-      --domain="$CUSTOM_DOMAIN" \
-      --region="$GCP_REGION" \
-      --quiet || echo "  ⚠ Domain mapping failed — you may need to verify domain ownership first."
-  fi
+CLOUD_RUN_HOST="${SERVICE_URL#https://}"
 
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  DNS: Create a CNAME record in your DNS provider:"
-  echo ""
-  echo "    ${CUSTOM_DOMAIN}  CNAME  ghs.googlehosted.com."
-  echo ""
-  echo "  (In AWS Route 53: add a CNAME record in your hosted zone)"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-fi
-
-# ─── OAuth redirect URI reminder ────────────────────────────────────
+# ─── Done ────────────────────────────────────────────────────────────
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  ✓ Deployed: ${SERVICE_URL}"
 echo ""
-echo "  Next steps:"
-echo "  1. Add this URL as an authorized JavaScript origin"
-echo "     in your Google OAuth client configuration:"
-echo "     → ${SERVICE_URL}"
-[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "     → https://${CUSTOM_DOMAIN}"
+echo "  Instance:  ${INSTANCE_NAME}"
+echo "  Service:   ${SERVICE_NAME}"
+echo "  URL:       ${SERVICE_URL}"
+echo "  Hostname:  ${CLOUD_RUN_HOST}"
+echo "  Bucket:    gs://${BUCKET_NAME}"
 echo ""
-echo "  2. Google Cloud Console → APIs & Services → Credentials"
-echo "     → Edit your OAuth 2.0 Client ID"
-echo "     → Add to 'Authorized JavaScript origins'"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "  3. Create the DNS CNAME record shown above"
+echo "  NEXT STEPS"
+echo ""
+echo "  1. Google OAuth — add authorized JavaScript origins:"
+echo ""
+echo "     ${SERVICE_URL}"
+[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "     https://${CUSTOM_DOMAIN}"
+echo ""
+echo "     → https://console.cloud.google.com/apis/credentials"
+echo "     → Edit OAuth 2.0 Client ID → Authorized JavaScript origins"
+echo ""
+if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
+  echo "  2. DNS — create a CNAME record for your subdomain:"
+  echo ""
+  echo "     Record type:  CNAME"
+  echo "     Name:         ${CUSTOM_DOMAIN}"
+  echo "     Value:        ${CLOUD_RUN_HOST}"
+  echo ""
+  echo "     In AWS Route 53:"
+  echo "       - Open your hosted zone"
+  echo "       - Create Record → Simple routing"
+  echo "       - Record name: ${CUSTOM_DOMAIN%%.*}"
+  echo "       - Record type: CNAME"
+  echo "       - Value: ${CLOUD_RUN_HOST}"
+  echo "       - TTL: 300"
+  echo ""
+  echo "     SSL is automatic — Cloud Run handles HTTPS."
+  echo ""
+fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
