@@ -19,8 +19,37 @@ set -euo pipefail
 CONFIG_FILE="${1:-}"
 SKIP_BUILD=false
 
+# ─── --list-zones: show Route 53 hosted zones and exit ───────────────
+
+if [[ "${CONFIG_FILE}" == "--list-zones" ]]; then
+  if ! command -v aws &>/dev/null; then
+    echo "Error: aws CLI not found. Install it from https://aws.amazon.com/cli/"
+    exit 1
+  fi
+  echo ""
+  echo "  AWS Route 53 Hosted Zones"
+  echo "  ─────────────────────────────────────────────────────"
+  printf "  %-40s  %s\n" "DOMAIN" "ZONE ID"
+  echo "  ─────────────────────────────────────────────────────"
+  aws route53 list-hosted-zones --output json | \
+    python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for z in data.get('HostedZones', []):
+    name = z['Name'].rstrip('.')
+    zid = z['Id'].split('/')[-1]
+    print(f'  {name:<40}  {zid}')
+" 2>/dev/null || echo "  (failed — check aws credentials: aws configure)"
+  echo ""
+  echo "  Copy the zone ID for your domain into your config file:"
+  echo "  AWS_HOSTED_ZONE_ID=Z1234567890ABC"
+  echo ""
+  exit 0
+fi
+
 if [[ -z "$CONFIG_FILE" ]]; then
   echo "Usage: $0 <config.env> [--skip-build]"
+  echo "       $0 --list-zones"
   echo ""
   echo "  Create a config file from the template:"
   echo "    cp deploy/config.example.env deploy/myname.env"
@@ -182,6 +211,31 @@ gcloud run services update "$SERVICE_NAME" \
 
 CLOUD_RUN_HOST="${SERVICE_URL#https://}"
 
+# ─── Route 53 DNS (optional) ────────────────────────────────────────
+
+DNS_DONE=false
+if [[ -n "${CUSTOM_DOMAIN:-}" && -n "${AWS_HOSTED_ZONE_ID:-}" ]]; then
+  if command -v aws &>/dev/null; then
+    echo "→ Creating Route 53 CNAME: ${CUSTOM_DOMAIN} → ${CLOUD_RUN_HOST}"
+    aws route53 change-resource-record-sets \
+      --hosted-zone-id "$AWS_HOSTED_ZONE_ID" \
+      --change-batch "{
+        \"Changes\": [{
+          \"Action\": \"UPSERT\",
+          \"ResourceRecordSet\": {
+            \"Name\": \"${CUSTOM_DOMAIN}\",
+            \"Type\": \"CNAME\",
+            \"TTL\": 300,
+            \"ResourceRecords\": [{\"Value\": \"${CLOUD_RUN_HOST}\"}]
+          }
+        }]
+      }" --output text --query 'ChangeInfo.Status' 2>/dev/null && DNS_DONE=true \
+      || echo "  ⚠ Route 53 update failed — check AWS credentials and zone ID"
+  else
+    echo "→ Skipping Route 53 (aws CLI not installed)"
+  fi
+fi
+
 # ─── Done ────────────────────────────────────────────────────────────
 
 echo ""
@@ -192,6 +246,8 @@ echo "  Service:   ${SERVICE_NAME}"
 echo "  URL:       ${SERVICE_URL}"
 echo "  Hostname:  ${CLOUD_RUN_HOST}"
 echo "  Bucket:    gs://${BUCKET_NAME}"
+[[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "  Domain:    https://${CUSTOM_DOMAIN}"
+[[ "$DNS_DONE" == "true" ]] && echo "  DNS:       ✓ Route 53 CNAME created"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -205,22 +261,15 @@ echo ""
 echo "     → https://console.cloud.google.com/apis/credentials"
 echo "     → Edit OAuth 2.0 Client ID → Authorized JavaScript origins"
 echo ""
-if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
+if [[ -n "${CUSTOM_DOMAIN:-}" && "$DNS_DONE" == "false" ]]; then
   echo "  2. DNS — create a CNAME record for your subdomain:"
   echo ""
   echo "     Record type:  CNAME"
   echo "     Name:         ${CUSTOM_DOMAIN}"
   echo "     Value:        ${CLOUD_RUN_HOST}"
   echo ""
-  echo "     In AWS Route 53:"
-  echo "       - Open your hosted zone"
-  echo "       - Create Record → Simple routing"
-  echo "       - Record name: ${CUSTOM_DOMAIN%%.*}"
-  echo "       - Record type: CNAME"
-  echo "       - Value: ${CLOUD_RUN_HOST}"
-  echo "       - TTL: 300"
-  echo ""
-  echo "     SSL is automatic — Cloud Run handles HTTPS."
+  echo "     Or set AWS_HOSTED_ZONE_ID in your config to automate this."
+  echo "     Find your zone ID: $0 --list-zones"
   echo ""
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
