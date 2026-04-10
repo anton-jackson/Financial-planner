@@ -122,6 +122,17 @@ export interface VehiclePurchase {
   trade_in_value: number;
 }
 
+export interface Windfall {
+  name: string;
+  year: number;
+  amount: number;
+  taxable: boolean;
+  tax_rate_override: number | null;
+  recurring: boolean;
+  end_year: number | null;
+  notes: string;
+}
+
 export interface HELOC {
   name: string;
   balance: number;
@@ -141,6 +152,7 @@ export interface Profile {
   savings: Savings;
   tax: TaxConfig;
   expenses: Expenses;
+  windfalls: Windfall[];
   existing_vehicles: ExistingVehicle[];
   vehicles: VehiclePurchase[];
   helocs: HELOC[];

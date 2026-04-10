@@ -86,6 +86,7 @@ def project_cashflows(
             assumptions=assumptions,
             state=state,
             profile=profile,
+            end_year=end_year,
         )
         results.append(row)
 
@@ -235,6 +236,7 @@ def _project_year(
     assumptions: dict,
     state: dict,
     profile: dict,
+    end_year: int = 2090,
 ) -> dict:
     """Project a single year's cashflow."""
     age = year - birth_year
@@ -561,9 +563,19 @@ def _project_year(
                 )
 
     # --- Life events (inheritance, windfalls, etc.) ---
+    # Combine profile-level windfalls (permanent) with scenario life_events
     life_event_income = 0.0
-    for evt in assumptions.get("life_events", []):
-        if evt["year"] == year:
+    all_life_events = list(assumptions.get("life_events", []))
+    for w in profile.get("windfalls", []):
+        if w.get("recurring", False):
+            w_end = w.get("end_year") or end_year
+            if w["year"] <= year <= w_end:
+                all_life_events.append(w)
+        else:
+            if w["year"] == year:
+                all_life_events.append(w)
+    for evt in all_life_events:
+        if evt["year"] == year or (evt.get("recurring") and evt["year"] <= year):
             amount = evt["amount"]
             tax = 0.0
             if evt.get("taxable", False) and amount > 0:

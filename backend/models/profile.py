@@ -181,6 +181,22 @@ class VehiclePurchase(BaseModel):
     trade_in_value: float = 0  # expected trade-in credit (today's dollars)
 
 
+class Windfall(BaseModel):
+    """A known future cash event: inheritance, gift, legal settlement, stock option exercise, etc.
+
+    Unlike scenario life_events, windfalls live on the profile and are included
+    in every simulation (baseline + all scenarios).
+    """
+    name: str = ""
+    year: int = 2030
+    amount: float = 0  # positive = inflow, negative = outflow
+    taxable: bool = False
+    tax_rate_override: float | None = None  # None = use profile's effective rate
+    recurring: bool = False  # if True, repeats every year from `year` through `end_year`
+    end_year: int | None = None  # last year of recurrence (None = until end of horizon)
+    notes: str = ""  # freeform context ("Mom's estate", "stock option exercise", etc.)
+
+
 class HELOC(BaseModel):
     """Home equity line of credit."""
     name: str = ""
@@ -201,6 +217,7 @@ class Profile(BaseModel):
     savings: Savings = Savings()
     expenses: Expenses = Expenses()
     tax: TaxConfig = TaxConfig()
+    windfalls: list[Windfall] = []
     existing_vehicles: list[ExistingVehicle] = []
     vehicles: list[VehiclePurchase] = []  # planned future purchases
     helocs: list[HELOC] = []
