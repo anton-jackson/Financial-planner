@@ -70,6 +70,12 @@ else
   echo "→ Keeping storage bucket: ${BUCKET_NAME}"
 fi
 
+# Delete service account
+SA_NAME="${SERVICE_NAME}-sa"
+SA_EMAIL="${SA_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com"
+echo "→ Deleting service account: ${SA_NAME}"
+gcloud iam service-accounts delete "$SA_EMAIL" --quiet 2>/dev/null || true
+
 echo ""
 echo "✓ Teardown complete."
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && echo "  Remember to remove the DNS CNAME record for ${CUSTOM_DOMAIN}"

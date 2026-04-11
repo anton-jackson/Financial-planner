@@ -193,6 +193,32 @@ if ! gcloud storage buckets describe "gs://${BUCKET_NAME}" --quiet 2>/dev/null; 
     --quiet
 fi
 
+# ─── Service account (least-privilege) ──────────────────────────────
+
+SA_NAME="${SERVICE_NAME}-sa"
+SA_EMAIL="${SA_NAME}@${GCP_PROJECT}.iam.gserviceaccount.com"
+
+if ! gcloud iam service-accounts describe "$SA_EMAIL" --quiet 2>/dev/null; then
+  echo "→ Creating service account: ${SA_NAME}"
+  gcloud iam service-accounts create "$SA_NAME" \
+    --display-name="Financial Planner - ${INSTANCE_NAME}" \
+    --quiet
+fi
+
+# Grant access to its own bucket only (read + write)
+echo "→ Setting bucket IAM policy..."
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET_NAME}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/storage.objectAdmin" \
+  --quiet 2>/dev/null || true
+
+# Grant permission to pull images from Artifact Registry
+gcloud artifacts repositories add-iam-policy-binding "$REPO_NAME" \
+  --location="$GCP_REGION" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/artifactregistry.reader" \
+  --quiet 2>/dev/null || true
+
 # ─── Deploy Cloud Run ───────────────────────────────────────────────
 
 echo "→ Deploying Cloud Run service: ${SERVICE_NAME}"
@@ -215,6 +241,7 @@ gcloud run deploy "$SERVICE_NAME" \
   --region "$GCP_REGION" \
   --platform managed \
   --allow-unauthenticated \
+  --service-account "$SA_EMAIL" \
   --memory 1Gi \
   --cpu 1 \
   --min-instances 0 \
