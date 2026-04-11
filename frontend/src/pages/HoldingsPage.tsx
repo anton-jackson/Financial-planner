@@ -676,6 +676,20 @@ export function HoldingsPage() {
         />
       ))}
 
+      {/* No investment accounts at all */}
+      {accounts.length === 0 && (
+        <div className="bg-slate-50 rounded-lg border border-slate-200 p-8 text-center mb-8">
+          <p className="text-slate-500 mb-2">No investment accounts found.</p>
+          <p className="text-sm text-slate-400">
+            Add accounts on the{" "}
+            <a href="/assets" className="text-blue-600 hover:underline">
+              Assets & Liabilities
+            </a>{" "}
+            page first, then come back here to enter individual holdings.
+          </p>
+        </div>
+      )}
+
       {/* Add accounts that don't have holdings yet */}
       {unmappedAccounts.length > 0 && (
         <div className="mb-8">

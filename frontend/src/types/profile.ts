@@ -69,10 +69,12 @@ export interface Income {
 
 export interface PersonSavings {
   contribution_rate_pct: number;
+  bonus_401k_eligible: boolean;
   irs_401k_limit: number;
   annual_401k_traditional: number;
   annual_401k_roth: number;
   employer_match_pct: number;
+  employer_contribution_pct: number;
   annual_ira_traditional: number;
   annual_ira_roth: number;
   annual_hsa: number;

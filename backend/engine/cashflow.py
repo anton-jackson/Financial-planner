@@ -787,11 +787,13 @@ def _project_year(
         current_salary = base_salary * (1 + raise_pct / 100) ** (year - base_year)
         current_total_comp = current_salary * (1 + bonus_pct / 100)
 
-        # 401k: contribution rate applies to total cash comp (salary + bonus)
+        # 401k: contribution rate applies to salary (or salary + bonus if eligible)
         rate = person_savings.get("contribution_rate_pct", 0)
         limit = person_savings.get("irs_401k_limit", 24500)
+        bonus_eligible = person_savings.get("bonus_401k_eligible", False)
+        comp_basis = current_total_comp if bonus_eligible else current_salary
         if rate > 0:
-            total_401k = current_total_comp * rate / 100
+            total_401k = comp_basis * rate / 100
             trad_401k = min(total_401k, limit)
             roth_401k = max(0, total_401k - limit)
         else:
@@ -814,7 +816,9 @@ def _project_year(
 
         # Employer match → traditional (always pre-tax)
         match = current_salary * person_savings.get("employer_match_pct", 0) / 100
-        trad_contributions += match
+        # Flat employer contribution (independent of employee contribution)
+        employer_flat = current_salary * person_savings.get("employer_contribution_pct", 0) / 100
+        trad_contributions += match + employer_flat
 
     savings_contributions = (
         trad_contributions + roth_contributions

@@ -51,6 +51,9 @@ interface WizardState {
   balance_brokerage: number;
   balance_529: number;
   balance_other: number;
+  spouse_balance_401k: number;
+  spouse_balance_roth_ira: number;
+  spouse_balance_trad_ira: number;
 }
 
 const INITIAL: WizardState = {
@@ -96,6 +99,9 @@ const INITIAL: WizardState = {
   balance_brokerage: 0,
   balance_529: 0,
   balance_other: 0,
+  spouse_balance_401k: 0,
+  spouse_balance_roth_ira: 0,
+  spouse_balance_trad_ira: 0,
 };
 
 const STEPS = ["You", "Money In", "Money Out", "What You Have", "Review"];
@@ -137,6 +143,10 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
       // Auto-set filing status
       if (field === "has_spouse") {
         next.filing_status = value ? "mfj" : "single";
+      }
+      // Auto-toggle spouse when filing status is MFJ
+      if (field === "filing_status") {
+        next.has_spouse = value === "mfj";
       }
       return next;
     });
@@ -553,7 +563,14 @@ function StepWhatYouHave({
     { key: "balance_other", label: "Other (crypto, etc.)", hint: "Any other investments" },
   ];
 
-  const total = accounts.reduce((sum, a) => sum + ((data[a.key] as number) || 0), 0);
+  const spouseAccounts: { key: keyof WizardState; label: string; hint: string }[] = [
+    { key: "spouse_balance_401k", label: "Spouse 401k / 403b", hint: "Traditional pre-tax" },
+    { key: "spouse_balance_roth_ira", label: "Spouse Roth IRA", hint: "Tax-free growth" },
+    { key: "spouse_balance_trad_ira", label: "Spouse Traditional IRA", hint: "Pre-tax" },
+  ];
+
+  const allAccounts = data.has_spouse ? [...accounts, ...spouseAccounts] : accounts;
+  const total = allAccounts.reduce((sum, a) => sum + ((data[a.key] as number) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -566,6 +583,7 @@ function StepWhatYouHave({
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h3 className="text-sm font-semibold text-slate-600 mb-3">Your Accounts</h3>
         <div className="space-y-3">
           {accounts.map(({ key, label, hint }) => (
             <div key={key} className="flex items-center gap-4">
@@ -584,6 +602,31 @@ function StepWhatYouHave({
             </div>
           ))}
         </div>
+
+        {data.has_spouse && (
+          <>
+            <h3 className="text-sm font-semibold text-slate-600 mb-3 mt-6">Spouse Accounts</h3>
+            <div className="space-y-3">
+              {spouseAccounts.map(({ key, label, hint }) => (
+                <div key={key} className="flex items-center gap-4">
+                  <div className="w-48">
+                    <div className="text-sm font-medium text-slate-700">{label}</div>
+                    <div className="text-xs text-slate-400">{hint}</div>
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="number"
+                      value={data[key] as number}
+                      onChange={(e) => set(key, num(e))}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
           <span className="text-sm font-medium text-slate-600">Total Portfolio</span>
           <span className="text-lg font-semibold text-slate-800">
@@ -730,10 +773,12 @@ function buildProfile(d: WizardState) {
     savings: {
       primary: {
         contribution_rate_pct: d.contribution_rate_pct,
+        bonus_401k_eligible: false,
         irs_401k_limit: 24500,
         annual_401k_traditional: 0,
         annual_401k_roth: 0,
         employer_match_pct: d.employer_match_pct,
+        employer_contribution_pct: 0,
         annual_ira_traditional: 0,
         annual_ira_roth: d.annual_ira_roth,
         annual_hsa: d.annual_hsa,
@@ -742,10 +787,12 @@ function buildProfile(d: WizardState) {
       spouse: d.has_spouse
         ? {
             contribution_rate_pct: d.spouse_contribution_rate_pct,
+            bonus_401k_eligible: false,
             irs_401k_limit: 24500,
             annual_401k_traditional: 0,
             annual_401k_roth: 0,
             employer_match_pct: d.spouse_employer_match_pct,
+            employer_contribution_pct: 0,
             annual_ira_traditional: 0,
             annual_ira_roth: d.spouse_ira_roth,
             annual_hsa: 0,
@@ -753,10 +800,12 @@ function buildProfile(d: WizardState) {
           }
         : {
             contribution_rate_pct: 0,
+            bonus_401k_eligible: false,
             irs_401k_limit: 24500,
             annual_401k_traditional: 0,
             annual_401k_roth: 0,
             employer_match_pct: 0,
+            employer_contribution_pct: 0,
             annual_ira_traditional: 0,
             annual_ira_roth: 0,
             annual_hsa: 0,
@@ -809,6 +858,17 @@ function buildAssets(d: WizardState) {
   }
   if (d.balance_other > 0) {
     assets.push({ name: "Other Investments", type: "other", balance: d.balance_other, return_profile: "stocks_bonds", properties: {} });
+  }
+  if (d.has_spouse) {
+    if (d.spouse_balance_401k > 0) {
+      assets.push({ name: "Spouse 401k", type: "traditional_401k", balance: d.spouse_balance_401k, return_profile: "stocks_bonds", properties: {} });
+    }
+    if (d.spouse_balance_roth_ira > 0) {
+      assets.push({ name: "Spouse Roth IRA", type: "roth_ira", balance: d.spouse_balance_roth_ira, return_profile: "stocks_bonds", properties: {} });
+    }
+    if (d.spouse_balance_trad_ira > 0) {
+      assets.push({ name: "Spouse Traditional IRA", type: "traditional_ira", balance: d.spouse_balance_trad_ira, return_profile: "stocks_bonds", properties: {} });
+    }
   }
   if (d.owns_home && d.home_value > 0) {
     assets.push({

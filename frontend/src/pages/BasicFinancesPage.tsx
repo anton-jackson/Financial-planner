@@ -153,21 +153,24 @@ function PersonSavingsSection({
   title,
   savings,
   salary,
+  bonusPct,
   onChange,
 }: {
   title: string;
   savings: PersonSavings;
   salary: number;
-  onChange: (field: string, value: number) => void;
+  bonusPct: number;
+  onChange: (field: string, value: number | boolean) => void;
 }) {
   const rate = savings.contribution_rate_pct;
   const limit = savings.irs_401k_limit;
-  const total401k = salary * rate / 100;
+  const compBasis = savings.bonus_401k_eligible ? salary * (1 + bonusPct / 100) : salary;
+  const total401k = compBasis * rate / 100;
   const computedTrad = Math.min(total401k, limit);
   const computedRoth = Math.max(0, total401k - limit);
 
   const onRateChange = (newRate: number) => {
-    const newTotal = salary * newRate / 100;
+    const newTotal = compBasis * newRate / 100;
     onChange("contribution_rate_pct", newRate);
     onChange("annual_401k_traditional", Math.round(Math.min(newTotal, limit)));
     onChange("annual_401k_roth", Math.round(Math.max(0, newTotal - limit)));
@@ -195,9 +198,23 @@ function PersonSavingsSection({
         <FormField label="Backdoor Roth 401k" hint="Overflow above limit">
           <div className={`px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-medium ${computedRoth > 0 ? "text-blue-700" : "text-slate-400"}`}>${Math.round(computedRoth).toLocaleString()}</div>
         </FormField>
-        <FormField label="Employer Match %">
+        <FormField label="Employer Match %" hint="Matched on employee contribution">
           <Input type="number" step="0.1" value={savings.employer_match_pct} onChange={(e) => onChange("employer_match_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
+        <FormField label="Employer Contribution %" hint="Flat contribution regardless of employee">
+          <Input type="number" step="0.1" value={savings.employer_contribution_pct} onChange={(e) => onChange("employer_contribution_pct", parseFloat(e.target.value) || 0)} />
+        </FormField>
+        <div className="col-span-2">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={savings.bonus_401k_eligible}
+              onChange={(e) => onChange("bonus_401k_eligible", e.target.checked)}
+              className="rounded border-slate-300"
+            />
+            Bonus is 401k-eligible (include bonus in contribution basis)
+          </label>
+        </div>
         <FormField label="Traditional IRA (annual)">
           <Input type="number" value={savings.annual_ira_traditional} onChange={(e) => onChange("annual_ira_traditional", parseFloat(e.target.value) || 0)} />
         </FormField>
@@ -224,7 +241,7 @@ function SavingsSection({
   savings: Profile["savings"];
   income: Profile["income"];
   hasSpouse: boolean;
-  onChange: (person: "primary" | "spouse" | "top", field: string, value: number) => void;
+  onChange: (person: "primary" | "spouse" | "top", field: string, value: number | boolean) => void;
 }) {
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -239,9 +256,9 @@ function SavingsSection({
         ]}
       />
       <div className="flex flex-col gap-4">
-        <PersonSavingsSection title="Primary" savings={savings.primary} salary={income.primary.base_salary} onChange={(field, value) => onChange("primary", field, value)} />
+        <PersonSavingsSection title="Primary" savings={savings.primary} salary={income.primary.base_salary} bonusPct={income.primary.bonus_pct} onChange={(field, value) => onChange("primary", field, value)} />
         {hasSpouse && (
-          <PersonSavingsSection title="Spouse" savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} onChange={(field, value) => onChange("spouse", field, value)} />
+          <PersonSavingsSection title="Spouse" savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} bonusPct={income.spouse?.bonus_pct ?? 0} onChange={(field, value) => onChange("spouse", field, value)} />
         )}
       </div>
     </div>
@@ -376,7 +393,7 @@ export function BasicFinancesPage() {
     setDirty(true);
   };
 
-  const updateSavings = (person: "primary" | "spouse" | "top", field: string, value: number) => {
+  const updateSavings = (person: "primary" | "spouse" | "top", field: string, value: number | boolean) => {
     setLocal((prev) => {
       if (!prev) return prev;
       if (person === "top") return { ...prev, savings: { ...prev.savings, [field]: value } };

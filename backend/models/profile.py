@@ -109,11 +109,14 @@ class PersonSavings(BaseModel):
     """Savings for one person (primary or spouse)."""
     # 401k: enter as contribution_rate_pct of salary, auto-split at IRS limit
     contribution_rate_pct: float = 0  # e.g. 15% of salary
+    bonus_401k_eligible: bool = False  # if True, 401k contributions include bonus in comp basis
     irs_401k_limit: float = 24500  # 2026 traditional 401k limit
     # Computed by frontend/engine: traditional = min(salary * rate, limit), roth = remainder
     annual_401k_traditional: float = 0
     annual_401k_roth: float = 0
     employer_match_pct: float = 0
+    # Flat employer contribution (% of salary, contributed regardless of employee contribution)
+    employer_contribution_pct: float = 0  # e.g. 15% auto-contribution
     annual_ira_traditional: float = 0
     annual_ira_roth: float = 0
     annual_hsa: float = 0
