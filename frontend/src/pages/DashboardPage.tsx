@@ -392,7 +392,7 @@ export function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={(v: number) => fmtFull(v)} />
+              <Tooltip formatter={(v: number | undefined) => fmtFull(v ?? 0)} />
               <Legend />
               {milestones.map((m, i) => (
                 <ReferenceLine
@@ -548,9 +548,9 @@ export function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={(v: number, name: string) => {
+              <Tooltip formatter={(v: number | undefined, name: string | undefined) => {
                 const labels: Record<string, string> = { p10: "10th", p25: "25th", p50: "Median", p75: "75th", p90: "90th" };
-                return [fmtFull(v), labels[name] ?? name];
+                return [fmtFull(v ?? 0), labels[name ?? ""] ?? name];
               }} />
               {milestones.map((m, i) => (
                 <ReferenceLine

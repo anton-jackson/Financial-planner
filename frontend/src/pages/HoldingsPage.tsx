@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { holdingsApi } from "../api/holdings";
 import { assetsApi } from "../api/assets";
-import { FormField, Input } from "../components/shared/FormField";
+import { Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
 import type {
   HoldingsFile,

@@ -49,7 +49,7 @@ function NetWorthChart({ results }: { results: DeterministicResult[] }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="year" />
           <YAxis tickFormatter={fmt} />
-          <Tooltip formatter={(v: number) => fmtFull(Math.round(v))} />
+          <Tooltip formatter={(v: number | undefined) => fmtFull(Math.round(v ?? 0))} />
           <Legend />
           {results.map((r, i) => [
             <Line
@@ -124,7 +124,7 @@ function MonteCarloFanChart({ result }: { result: MonteCarloResult }) {
           <XAxis dataKey="year" />
           <YAxis tickFormatter={fmt} />
           <Tooltip
-            formatter={(v: number, name: string) => {
+            formatter={(v: number | undefined, name: string | undefined) => {
               const labels: Record<string, string> = {
                 p10: "10th pctl",
                 p25: "25th pctl",
@@ -132,7 +132,7 @@ function MonteCarloFanChart({ result }: { result: MonteCarloResult }) {
                 p75: "75th pctl",
                 p90: "90th pctl",
               };
-              return [fmtFull(Math.round(v)), labels[name] ?? name];
+              return [fmtFull(Math.round(v ?? 0)), labels[name ?? ""] ?? name];
             }}
           />
           <Legend />
@@ -259,7 +259,7 @@ function CashFlowChart({ result }: { result: DeterministicResult }) {
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="year" />
           <YAxis tickFormatter={fmt} />
-          <Tooltip formatter={(v: number) => fmtFull(Math.round(v as number))} />
+          <Tooltip formatter={(v: number | undefined) => fmtFull(Math.round(v ?? 0))} />
           <Legend />
           <Bar dataKey="income" name="Income" fill="#16a34a" />
           <Bar dataKey="expenses" name="Expenses" fill="#dc2626" />

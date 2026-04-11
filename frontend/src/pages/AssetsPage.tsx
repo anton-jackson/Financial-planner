@@ -98,7 +98,7 @@ function AssetCard({
               <option value="yes">Yes</option>
             </select>
           </FormField>
-          {props.is_rental && (
+          {Boolean(props.is_rental) && (
             <FormField label="Monthly Rent">
               <Input type="number" value={(props.monthly_rent as number) ?? 0} onChange={(e) => onPropertyChange(index, "monthly_rent", parseFloat(e.target.value) || 0)} />
             </FormField>
