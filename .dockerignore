@@ -1,0 +1,36 @@
+.git
+.gitignore
+.env
+.env.local
+.venv
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Node (frontend rebuilds inside Docker)
+node_modules
+frontend/node_modules
+frontend/dist
+
+# Python caches
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+
+# Runtime data (not part of the image)
+backend/data/profile.yaml
+backend/data/assets.yaml
+backend/data/results
+backend/data/agent_sandbox
+data/
+
+# Deploy configs (contain secrets)
+deploy/*.env
+!deploy/config.example.env
+
+# Docs (not needed in container)
+docs/
