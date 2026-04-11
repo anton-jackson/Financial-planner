@@ -145,7 +145,7 @@ function PoolChart({ rows }: { rows: YearRow[] }) {
           <XAxis dataKey="year" tick={{ fontSize: 12 }} />
           <YAxis tickFormatter={fmtK} tick={{ fontSize: 12 }} />
           <Tooltip
-            formatter={(value: number | undefined, name: string | undefined) => [fmt(value ?? 0), name ?? ""]}
+            formatter={((value: number, name: string) => [fmt(value ?? 0), name ?? ""]) as any}
             labelFormatter={(label) => {
               const row = data.find(d => d.year === label);
               return row ? `Year ${label} (age ${row.age})` : `Year ${label}`;
@@ -189,7 +189,7 @@ function WithdrawalChart({ rows }: { rows: YearRow[] }) {
           <XAxis dataKey="year" tick={{ fontSize: 12 }} />
           <YAxis tickFormatter={fmtK} tick={{ fontSize: 12 }} />
           <Tooltip
-            formatter={(value: number | undefined, name: string | undefined) => [fmt(value ?? 0), name ?? ""]}
+            formatter={((value: number, name: string) => [fmt(value ?? 0), name ?? ""]) as any}
             labelFormatter={(label) => {
               const row = data.find(d => d.year === label);
               return row ? `Year ${label} (age ${row.age})` : `Year ${label}`;
@@ -224,7 +224,7 @@ function TaxRateChart({ rows }: { rows: YearRow[] }) {
           <XAxis dataKey="year" tick={{ fontSize: 12 }} />
           <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12 }} domain={[0, 'auto']} />
           <Tooltip
-            formatter={(value: number | undefined, name: string | undefined) => [fmtPct(value ?? 0), name ?? ""]}
+            formatter={((value: number, name: string) => [fmtPct(value ?? 0), name ?? ""]) as any}
             labelFormatter={(label) => {
               const row = data.find(d => d.year === label);
               return row ? `Year ${label} (age ${row.age})` : `Year ${label}`;

@@ -306,7 +306,7 @@ function SimResults({
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={(v: number | undefined) => fmtFull(v ?? 0)} />
+              <Tooltip formatter={((v: number) => fmtFull(v ?? 0)) as any} />
               <Line type="monotone" dataKey="net_worth" name="Total" stroke="#2563eb" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="liquid" name="Liquid" stroke="#16a34a" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
               <Line type="monotone" dataKey="illiquid" name="Illiquid" stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
@@ -323,10 +323,10 @@ function SimResults({
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={(v: number | undefined, name: string | undefined) => {
+              <Tooltip formatter={((v: number, name: string) => {
                 const labels: Record<string, string> = { p10: "10th", p25: "25th", p50: "Median", p75: "75th", p90: "90th" };
                 return [fmtFull(v ?? 0), labels[name ?? ""] ?? name];
-              }} />
+              }) as any} />
               <Area type="monotone" dataKey="p90" stroke="#93c5fd" fill="#dbeafe" strokeWidth={1} dot={false} />
               <Area type="monotone" dataKey="p75" stroke="#60a5fa" fill="#bfdbfe" strokeWidth={1} dot={false} />
               <Area type="monotone" dataKey="p50" stroke="#2563eb" fill="#93c5fd" strokeWidth={2} dot={false} />
