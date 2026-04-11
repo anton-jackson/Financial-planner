@@ -121,6 +121,7 @@ export function AssetsPage() {
   const [localProfile, setLocalProfile] = useState<Profile | null>(null);
   const [assetsDirty, setAssetsDirty] = useState(false);
   const [profileDirty, setProfileDirty] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   useEffect(() => { if (assetsData) setLocalAssets(assetsData); }, [assetsData]);
   useEffect(() => { if (profileData) setLocalProfile(profileData); }, [profileData]);
@@ -311,19 +312,21 @@ export function AssetsPage() {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-semibold">Accounts</h3>
-          <div className="relative group">
-            <button className="text-sm text-blue-600 hover:text-blue-800">+ Add Account</button>
-            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 w-48">
-              {Object.entries(TYPE_LABELS).map(([type, label]) => (
-                <button
-                  key={type}
-                  onClick={() => addAsset(type)}
-                  className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div className="relative">
+            <button onClick={() => setAddMenuOpen(!addMenuOpen)} className="text-sm text-blue-600 hover:text-blue-800">+ Add Account</button>
+            {addMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 w-48">
+                {Object.entries(TYPE_LABELS).map(([type, label]) => (
+                  <button
+                    key={type}
+                    onClick={() => { addAsset(type); setAddMenuOpen(false); }}
+                    className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <SectionHelp
