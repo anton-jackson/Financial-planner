@@ -20,13 +20,16 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Install dependencies first (layer caching)
-COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir $(python3 -c "
-import tomllib
-with open('pyproject.toml', 'rb') as f:
-    deps = tomllib.load(f)['project']['dependencies']
-print(' '.join(deps))
-")
+RUN pip install --no-cache-dir \
+    "fastapi>=0.115" \
+    "uvicorn[standard]>=0.30" \
+    "pydantic>=2.0" \
+    "pyyaml>=6.0" \
+    "numpy>=1.26" \
+    "scipy>=1.12" \
+    "pandas>=2.1" \
+    "python-multipart>=0.0.9" \
+    "anthropic>=0.40"
 
 # Copy backend code
 COPY backend/ .
