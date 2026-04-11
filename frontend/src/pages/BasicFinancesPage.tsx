@@ -258,7 +258,7 @@ function SavingsSection({
       <div className="flex flex-col gap-4">
         <PersonSavingsSection title="Primary" savings={savings.primary} salary={income.primary.base_salary} bonusPct={income.primary.bonus_pct} onChange={(field, value) => onChange("primary", field, value)} />
         {hasSpouse && (
-          <PersonSavingsSection title="Spouse" savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} bonusPct={income.spouse?.bonus_pct ?? 0} onChange={(field, value) => onChange("spouse", field, value)} />
+          <PersonSavingsSection title="Spouse" savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} bonusPct={0} onChange={(field, value) => onChange("spouse", field, value)} />
         )}
       </div>
     </div>
