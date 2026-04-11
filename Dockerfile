@@ -21,7 +21,12 @@ WORKDIR /app
 
 # Install dependencies first (layer caching)
 COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir $(python3 -c "
+import tomllib
+with open('pyproject.toml', 'rb') as f:
+    deps = tomllib.load(f)['project']['dependencies']
+print(' '.join(deps))
+")
 
 # Copy backend code
 COPY backend/ .
