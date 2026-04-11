@@ -223,20 +223,20 @@ gcloud artifacts repositories add-iam-policy-binding "$REPO_NAME" \
 
 echo "→ Deploying Cloud Run service: ${SERVICE_NAME}"
 
-# Build env vars file (avoids escaping issues with URLs in --set-env-vars)
+# Build env vars file (YAML format, avoids escaping issues with URLs)
 CORS="https://${SERVICE_NAME}*.run.app"
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS+=",https://${CUSTOM_DOMAIN}"
 
-ENV_FILE=$(mktemp)
+ENV_FILE=$(mktemp /tmp/envvars.XXXXXX.yaml)
 cat > "$ENV_FILE" <<ENVEOF
-AUTH_ENABLED=true
-ALLOWED_EMAIL=${ALLOWED_EMAIL}
-GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-DATA_DIR=/app/data
-STORAGE_BACKEND=local
-CORS_ORIGINS=${CORS}
+AUTH_ENABLED: "true"
+ALLOWED_EMAIL: "${ALLOWED_EMAIL}"
+GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+DATA_DIR: "/app/data"
+STORAGE_BACKEND: "local"
+CORS_ORIGINS: "${CORS}"
 ENVEOF
-[[ -n "${ANTHROPIC_API_KEY:-}" ]] && echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "$ENV_FILE"
+[[ -n "${ANTHROPIC_API_KEY:-}" ]] && echo "ANTHROPIC_API_KEY: \"${ANTHROPIC_API_KEY}\"" >> "$ENV_FILE"
 
 gcloud run deploy "$SERVICE_NAME" \
   --image "$IMAGE_URI" \
@@ -265,8 +265,8 @@ SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
 CORS_FINAL="${SERVICE_URL}"
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS_FINAL+=",https://${CUSTOM_DOMAIN}"
 
-ENV_FILE2=$(mktemp)
-echo "CORS_ORIGINS=${CORS_FINAL}" > "$ENV_FILE2"
+ENV_FILE2=$(mktemp /tmp/envvars.XXXXXX.yaml)
+echo "CORS_ORIGINS: \"${CORS_FINAL}\"" > "$ENV_FILE2"
 gcloud run services update "$SERVICE_NAME" \
   --region="$GCP_REGION" \
   --env-vars-file "$ENV_FILE2" \
