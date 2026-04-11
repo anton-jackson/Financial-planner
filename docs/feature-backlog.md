@@ -5,36 +5,98 @@
 - **AI Advisor Agent** — Conversational agent with tool-use loop, collapsible side panel, sandbox for write output. See `docs/agent-architecture.md`.
 - **Portfolio Holdings & Rebalance Calculator** — Per-account holdings entry, live market data via yfinance, cross-account rebalance calculator with tax-aware trade suggestions.
 - **Windfalls & Inheritances** — Permanent profile-level cash events (one-time and recurring) included in every simulation. Separate from scenario life events.
+- **Onboarding Wizard** — 5-step first-time setup flow with spouse support, account balances, and auto-scenario bootstrapping.
+- **Cloud Run Deployment** — Deploy scripts (local + remote), combined Dockerfile, GCS-FUSE persistence, Route 53 DNS automation. See `deploy/README.md`.
 
 ---
 
 ## Planned — Cloud Deployment
-- **Cloud Run deploy (P3)** — one instance per user, deploy script, GCS-FUSE storage. Last step before sharing with friends. See `docs/deployment-spec.md`.
+- ~~**Cloud Run deploy (P3)** — one instance per user, deploy script, GCS-FUSE storage.~~ Done. See `deploy/README.md`.
 
 ---
 
 ## Feature Ideas
 
-### First-Time Use / Onboarding
-Guided setup flow for new users who have no profile or assets configured. Currently the app drops you on an empty dashboard with no guidance — you have to know to go to Profile, then Finances, then Assets, etc.
+### Plaid Integration — Account Linking
 
-**Core flow:**
-1. Welcome screen — explain what the app does, what data is needed
-2. Profile basics — name, birth year, retirement age, state, spouse (if applicable)
-3. Income — salary, raises, bonus, spouse income
-4. Savings — 401k rate, IRA, HSA, additional savings
-5. Expenses — annual base spending, per-child costs
-6. Assets — walk through adding accounts (401k, IRA, brokerage, real estate)
-7. First simulation — auto-run baseline and show the dashboard with results
+Connect to Vanguard, Fidelity, Schwab, and other institutions to auto-sync account balances and holdings. Eliminates manual data entry for investment accounts.
+
+**Plaid endpoints to use:**
+- `/investments/holdings/get` — current positions (ticker, shares, cost basis, market value)
+- `/accounts/balance/get` — account balances by type (401k, IRA, brokerage, HSA)
+- `/investments/transactions/get` — buy/sell history (for cost basis tracking)
+
+**Implementation:**
+
+Backend:
+- `pip install plaid-python`
+- New `backend/integrations/plaid_client.py` — wraps Plaid SDK
+- `POST /api/v1/plaid/create-link-token` — generates a Link token for the frontend widget
+- `POST /api/v1/plaid/exchange-token` — exchanges public token for access token after Link flow
+- `POST /api/v1/plaid/sync` — pulls latest holdings and balances, updates `assets.yaml` and holdings
+- Store Plaid access tokens in `data/plaid_tokens.json` (gitignored, encrypted at rest in production)
+
+Frontend:
+- `react-plaid-link` package — renders Plaid's Link widget (handles bank login securely)
+- "Link Account" button on Assets page and Holdings page (only visible when `PLAID_CLIENT_ID` is configured)
+- After linking, auto-populate account balances and holdings from Plaid data
+
+**Config:**
+```bash
+# In deploy config or .env — leave empty to disable
+PLAID_CLIENT_ID=
+PLAID_SECRET=
+PLAID_ENV=development    # sandbox | development | production
+```
+
+**Tiers:**
+| Tier | Institutions | Cost |
+|------|-------------|------|
+| Sandbox | Fake test data | Free |
+| Development | Real banks, 100 connections | Free |
+| Production | Unlimited | Per-connection/month |
+
+Development tier (100 connections, free) is sufficient for personal use and friends.
+
+**Data flow:**
+```
+User clicks "Link Account"
+  → Plaid Link widget opens (bank login in secure iframe)
+  → User authenticates with their bank
+  → Plaid returns a public token
+  → Backend exchanges for access token (stored locally)
+  → Backend calls /investments/holdings/get
+  → Maps Plaid accounts → assets.yaml entries
+  → Maps Plaid holdings → holdings per account
+  → Frontend refreshes to show synced data
+```
+
+**Sync strategy:**
+- On-demand: user clicks "Sync" button to pull latest
+- Optional: periodic background sync via cron or Cloud Scheduler
+- Plaid data supplements but doesn't overwrite manual entries (user can have both linked and manual accounts)
 
 **Considerations:**
-- Detect first-time use by checking if `profile.yaml` exists (backend already returns 404)
-- Stepper/wizard UI with progress indicator — not a single giant form
-- Allow skipping sections (fill in later)
-- Pre-populate sensible defaults (retirement age 65, 3% raises, base scenario assumptions)
-- At the end, save profile + assets + copy example scenarios, then redirect to dashboard
-- Could also offer "import from template" (single earner, dual income, tech comp, etc.)
-- Should the AI advisor offer to help with onboarding? Could be a natural first conversation
+- Plaid access tokens are sensitive — gitignore, encrypt in production
+- Some institutions (Vanguard historically) have spotty Plaid connectivity
+- Gracefully degrade: if Plaid isn't configured, everything works as-is with manual entry
+- The AI agent could use Plaid-synced data for more accurate analysis
+
+### CSV / Brokerage Statement Import
+
+Upload a CSV export from any brokerage to populate holdings. Lower friction than manual entry, works without any API keys.
+
+**Implementation:**
+- Upload endpoint: `POST /api/v1/holdings/import/csv`
+- Column mapping: auto-detect common formats (Schwab, Fidelity, Vanguard CSV exports)
+- Preview step: show parsed data before saving, let user confirm/edit mappings
+- Frontend: upload button on Holdings page
+
+**Brokerage CSV formats to support:**
+- Schwab: Symbol, Description, Quantity, Price, Market Value, Cost Basis
+- Fidelity: Symbol, Description, Quantity, Last Price, Current Value
+- Vanguard: Fund Name, Symbol, Shares, Share Price, Total Value
+- Generic: auto-detect by header matching
 
 ### Periodic Status Snapshots
 Auto-save a point-in-time snapshot of profile + assets + net worth at regular intervals. Creates a historical record you can look back on.
