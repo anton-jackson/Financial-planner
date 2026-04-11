@@ -265,13 +265,10 @@ SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
 CORS_FINAL="${SERVICE_URL}"
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS_FINAL+=",https://${CUSTOM_DOMAIN}"
 
-ENV_FILE2=$(mktemp /tmp/envvars.XXXXXX.yaml)
-echo "CORS_ORIGINS: \"${CORS_FINAL}\"" > "$ENV_FILE2"
 gcloud run services update "$SERVICE_NAME" \
   --region="$GCP_REGION" \
-  --env-vars-file "$ENV_FILE2" \
+  --update-env-vars "^||^CORS_ORIGINS=${CORS_FINAL}" \
   --quiet
-rm -f "$ENV_FILE2"
 
 # ─── Extract hostname for DNS ────────────────────────────────────────
 
