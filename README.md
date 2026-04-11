@@ -236,30 +236,24 @@ pip install -e backend/
 # Frontend
 cd frontend && npm install && cd ..
 
-# Copy example data
-cp backend/data/profile.example.yaml backend/data/profile.yaml
-cp backend/data/assets.example.yaml backend/data/assets.yaml
-
 # Run both servers
 make dev
 ```
 
-Backend runs on http://localhost:8000 (API docs at `/docs`), frontend on http://localhost:5173.
+Backend runs on http://localhost:8000 (API docs at `/docs`), frontend on http://localhost:5173. On first visit, the onboarding wizard walks you through setting up your profile.
 
 ## Running with Docker
 
 ```bash
-# Copy example data into the Docker volume directory
+# Copy scenario files into the Docker volume directory
 mkdir -p data/scenarios
-cp backend/data/profile.example.yaml data/profile.yaml
-cp backend/data/assets.example.yaml data/assets.yaml
-cp backend/data/scenarios/base.yaml data/scenarios/
+cp backend/data/scenarios/*.yaml data/scenarios/
 
 # Build and run
 docker compose up --build
 ```
 
-App runs on http://localhost. Data persists in the `./data` directory.
+App runs on http://localhost. Data persists in the `./data` directory. The onboarding wizard creates your profile on first visit.
 
 ## API
 

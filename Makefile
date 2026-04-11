@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend test seed docker-up docker-down docker-build
+.PHONY: dev backend frontend test docker-up docker-down docker-build
 
 # Local dev — runs both in parallel
 dev:
@@ -12,9 +12,6 @@ frontend:
 
 test:
 	cd backend && ../.venv/bin/pytest tests/ -v
-
-seed:
-	@echo "Seed data already in backend/data/"
 
 # Docker
 docker-build:
