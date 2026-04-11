@@ -223,18 +223,20 @@ gcloud artifacts repositories add-iam-policy-binding "$REPO_NAME" \
 
 echo "→ Deploying Cloud Run service: ${SERVICE_NAME}"
 
-ENV_VARS="AUTH_ENABLED=true"
-ENV_VARS+=",ALLOWED_EMAIL=${ALLOWED_EMAIL}"
-ENV_VARS+=",GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}"
-ENV_VARS+=",DATA_DIR=/app/data"
-ENV_VARS+=",STORAGE_BACKEND=local"
-
-# Initial CORS (will be updated after we know the URL)
+# Build env vars file (avoids escaping issues with URLs in --set-env-vars)
 CORS="https://${SERVICE_NAME}*.run.app"
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS+=",https://${CUSTOM_DOMAIN}"
-ENV_VARS+=",CORS_ORIGINS=${CORS}"
 
-[[ -n "${ANTHROPIC_API_KEY:-}" ]] && ENV_VARS+=",ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+ENV_FILE=$(mktemp)
+cat > "$ENV_FILE" <<ENVEOF
+AUTH_ENABLED=true
+ALLOWED_EMAIL=${ALLOWED_EMAIL}
+GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+DATA_DIR=/app/data
+STORAGE_BACKEND=local
+CORS_ORIGINS=${CORS}
+ENVEOF
+[[ -n "${ANTHROPIC_API_KEY:-}" ]] && echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "$ENV_FILE"
 
 gcloud run deploy "$SERVICE_NAME" \
   --image "$IMAGE_URI" \
@@ -247,11 +249,13 @@ gcloud run deploy "$SERVICE_NAME" \
   --min-instances 0 \
   --max-instances 1 \
   --timeout 300 \
-  --set-env-vars "$ENV_VARS" \
+  --env-vars-file "$ENV_FILE" \
   --execution-environment gen2 \
   --add-volume=name=data,type=cloud-storage,bucket="${BUCKET_NAME}" \
   --add-volume-mount=volume=data,mount-path=/app/data \
   --quiet
+
+rm -f "$ENV_FILE"
 
 # Get actual URL and update CORS
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
@@ -261,10 +265,13 @@ SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
 CORS_FINAL="${SERVICE_URL}"
 [[ -n "${CUSTOM_DOMAIN:-}" ]] && CORS_FINAL+=",https://${CUSTOM_DOMAIN}"
 
+ENV_FILE2=$(mktemp)
+echo "CORS_ORIGINS=${CORS_FINAL}" > "$ENV_FILE2"
 gcloud run services update "$SERVICE_NAME" \
   --region="$GCP_REGION" \
-  --update-env-vars "CORS_ORIGINS=${CORS_FINAL}" \
+  --env-vars-file "$ENV_FILE2" \
   --quiet
+rm -f "$ENV_FILE2"
 
 # ─── Extract hostname for DNS ────────────────────────────────────────
 
