@@ -193,6 +193,10 @@ if ! gcloud storage buckets describe "gs://${BUCKET_NAME}" --quiet 2>/dev/null; 
     --quiet
 fi
 
+# Enable versioning for rollback/backup (idempotent)
+echo "→ Enabling bucket versioning..."
+gcloud storage buckets update "gs://${BUCKET_NAME}" --versioning --quiet 2>/dev/null || true
+
 # ─── Service account (least-privilege) ──────────────────────────────
 
 SA_NAME="${SERVICE_NAME}-sa"
