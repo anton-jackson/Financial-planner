@@ -240,12 +240,24 @@ gcloud run services update "$SERVICE_NAME" \
 
 CLOUD_RUN_HOST="${SERVICE_URL#https://}"
 
+# ─── Custom domain mapping (required for SSL on custom domains) ──────
+
+if [[ -n "${CUSTOM_DOMAIN:-}" ]]; then
+  echo "→ Mapping custom domain: ${CUSTOM_DOMAIN}"
+  gcloud run domain-mappings create \
+    --service="$SERVICE_NAME" \
+    --domain="$CUSTOM_DOMAIN" \
+    --region="$GCP_REGION" \
+    --quiet 2>/dev/null || echo "  (domain mapping already exists or pending verification)"
+fi
+
 # ─── Route 53 DNS (optional) ────────────────────────────────────────
 
 DNS_DONE=false
 if [[ -n "${CUSTOM_DOMAIN:-}" && -n "${AWS_HOSTED_ZONE_ID:-}" ]]; then
   if command -v aws &>/dev/null; then
-    echo "→ Creating Route 53 CNAME: ${CUSTOM_DOMAIN} → ${CLOUD_RUN_HOST}"
+    # Domain mappings require CNAME to ghs.googlehosted.com for SSL cert provisioning
+    echo "→ Creating Route 53 CNAME: ${CUSTOM_DOMAIN} → ghs.googlehosted.com"
     aws route53 change-resource-record-sets \
       --hosted-zone-id "$AWS_HOSTED_ZONE_ID" \
       --change-batch "{
@@ -255,7 +267,7 @@ if [[ -n "${CUSTOM_DOMAIN:-}" && -n "${AWS_HOSTED_ZONE_ID:-}" ]]; then
             \"Name\": \"${CUSTOM_DOMAIN}\",
             \"Type\": \"CNAME\",
             \"TTL\": 300,
-            \"ResourceRecords\": [{\"Value\": \"${CLOUD_RUN_HOST}\"}]
+            \"ResourceRecords\": [{\"Value\": \"ghs.googlehosted.com\"}]
           }
         }]
       }" --output text --query 'ChangeInfo.Status' 2>/dev/null && DNS_DONE=true \
