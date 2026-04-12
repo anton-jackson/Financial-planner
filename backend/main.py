@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 
 from config import CORS_ORIGINS
 from api.router import router
+from seed_scenarios import seed_prebuilt_scenarios
 
 app = FastAPI(title="Finance Planner", version="0.1.0")
 
@@ -20,6 +21,9 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+
+# Seed prebuilt scenarios on startup (ensures GCS volume mounts get defaults)
+seed_prebuilt_scenarios()
 
 
 @app.get("/api/v1/health")
