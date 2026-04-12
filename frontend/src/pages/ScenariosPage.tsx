@@ -7,29 +7,12 @@ import {
   useCreateScenario,
 } from "../hooks/useScenarios";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FormField, Input } from "../components/shared/FormField";
-import { simulationApi } from "../api/simulation";
-import type { Scenario, LargePurchase, LifeEvent } from "../types/scenario";
-import type { DeterministicResult, MonteCarloResult } from "../types/simulation";
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+import { useProfile } from "../hooks/useProfile";
+import { useAssets } from "../hooks/useAssets";
+import type { Scenario, LargePurchase, LifeEvent, CollegeParentOverride, PropertyOverride } from "../types/scenario";
 import { SectionHelp } from "../components/shared/SectionHelp";
-
-const fmt = (n: number) => {
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-};
-const fmtFull = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
 /* ─── Sub-editors (unchanged) ─── */
 
@@ -248,98 +231,6 @@ function AllocationEditor({
   );
 }
 
-/* ─── Simulation results ─── */
-
-function SimResults({
-  det,
-  mc,
-}: {
-  det: DeterministicResult | null;
-  mc: MonteCarloResult | null;
-}) {
-  if (!det && !mc) return null;
-
-  const netWorthData = det?.yearly.map((r) => ({
-    year: r.year,
-    net_worth: r.net_worth,
-    liquid: r.liquid_net_worth,
-    illiquid: r.net_worth - r.liquid_net_worth,
-  })) ?? [];
-
-  const mcData = mc?.years.map((year, i) => ({
-    year,
-    p10: mc.net_worth.p10[i],
-    p25: mc.net_worth.p25[i],
-    p50: mc.net_worth.p50[i],
-    p75: mc.net_worth.p75[i],
-    p90: mc.net_worth.p90[i],
-  })) ?? [];
-
-  return (
-    <div className="flex flex-col gap-4 mt-6">
-      {mc && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="text-sm text-slate-500">Success Rate</div>
-            <div className={`text-2xl font-bold mt-1 ${mc.success_rate >= 80 ? "text-green-700" : mc.success_rate >= 50 ? "text-amber-600" : "text-red-600"}`}>
-              {mc.success_rate}%
-            </div>
-            <div className="text-xs text-slate-400 mt-1">{mc.num_trials.toLocaleString()} trials</div>
-          </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="text-sm text-slate-500">Median Terminal NW</div>
-            <div className="text-2xl font-bold mt-1">{fmt(mc.median_terminal_net_worth)}</div>
-          </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="text-sm text-slate-500">Runway (median)</div>
-            <div className="text-2xl font-bold mt-1">{mc.years_of_runway.p50[0].toFixed(0)} yrs</div>
-            <div className="text-xs text-slate-400 mt-1">p10: {mc.years_of_runway.p10[0].toFixed(0)} / p90: {mc.years_of_runway.p90[0].toFixed(0)}</div>
-          </div>
-        </div>
-      )}
-
-      {netWorthData.length > 0 && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold mb-4">Deterministic Net Worth</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={netWorthData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={((v: number) => fmtFull(v ?? 0)) as any} />
-              <Line type="monotone" dataKey="net_worth" name="Total" stroke="#2563eb" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="liquid" name="Liquid" stroke="#16a34a" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-              <Line type="monotone" dataKey="illiquid" name="Illiquid" stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      {mcData.length > 0 && (
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold mb-4">Monte Carlo Fan</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={mcData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis tickFormatter={fmt} />
-              <Tooltip formatter={((v: number, name: string) => {
-                const labels: Record<string, string> = { p10: "10th", p25: "25th", p50: "Median", p75: "75th", p90: "90th" };
-                return [fmtFull(v ?? 0), labels[name ?? ""] ?? name];
-              }) as any} />
-              <Area type="monotone" dataKey="p90" stroke="#93c5fd" fill="#dbeafe" strokeWidth={1} dot={false} />
-              <Area type="monotone" dataKey="p75" stroke="#60a5fa" fill="#bfdbfe" strokeWidth={1} dot={false} />
-              <Area type="monotone" dataKey="p50" stroke="#2563eb" fill="#93c5fd" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="p25" stroke="#60a5fa" fill="#bfdbfe" strokeWidth={1} dot={false} />
-              <Area type="monotone" dataKey="p10" stroke="#93c5fd" fill="#dbeafe" strokeWidth={1} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ─── Main page ─── */
 
 const DEFAULT_SCENARIO: Scenario = {
@@ -399,13 +290,11 @@ export function ScenariosPage() {
   const deleteScenario = useDeleteScenario();
   const cloneScenario = useCloneScenario();
   const createScenario = useCreateScenario();
+  const { data: profile } = useProfile();
+  const { data: assetsData } = useAssets();
+  const navigate = useNavigate();
   const [local, setLocal] = useState<Scenario | null>(null);
   const [dirty, setDirty] = useState(false);
-
-  // Simulation state
-  const [det, setDet] = useState<DeterministicResult | null>(null);
-  const [mc, setMc] = useState<MonteCarloResult | null>(null);
-  const [simLoading, setSimLoading] = useState(false);
 
   // Create new scenario dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -419,12 +308,12 @@ export function ScenariosPage() {
     if (scenario) {
       setLocal(scenario);
       setDirty(false);
-      setDet(null);
-      setMc(null);
     }
   }, [scenario]);
 
   if (isLoading) return <div className="text-slate-400">Loading...</div>;
+
+  const isReadonly = names?.find((n) => n.slug === selectedName)?.readonly ?? false;
 
   const save = () => {
     if (!local || !selectedName) return;
@@ -438,8 +327,6 @@ export function ScenariosPage() {
       onSuccess: () => {
         setSelectedName("");
         setLocal(null);
-        setDet(null);
-        setMc(null);
       },
     });
   };
@@ -475,23 +362,9 @@ export function ScenariosPage() {
     );
   };
 
-  const runSimulation = async () => {
+  const goToSimulation = () => {
     if (!selectedName) return;
-    setSimLoading(true);
-    setDet(null);
-    setMc(null);
-    try {
-      const [detResult, mcResult] = await Promise.all([
-        simulationApi.deterministic({ scenario_name: selectedName }),
-        simulationApi.monteCarlo({ scenario_name: selectedName, num_trials: 2000 }),
-      ]);
-      setDet(detResult);
-      setMc(mcResult);
-    } catch {
-      // TODO: show error
-    } finally {
-      setSimLoading(false);
-    }
+    navigate(`/simulation?scenario=${encodeURIComponent(selectedName)}`);
   };
 
   const updateReturns = (field: string, value: number) => {
@@ -592,6 +465,60 @@ export function ScenariosPage() {
     setDirty(true);
   };
 
+  // --- Override helpers ---
+  const updateRetirementOverride = (field: "retirement_age_primary" | "retirement_age_spouse", value: string) => {
+    setLocal((prev) => {
+      if (!prev) return prev;
+      const parsed = value === "" ? null : parseInt(value);
+      return { ...prev, assumptions: { ...prev.assumptions, [field]: parsed === null || isNaN(parsed) ? null : parsed } };
+    });
+    setDirty(true);
+  };
+
+  const updateCollegeOverride = (childName: string, value: string) => {
+    setLocal((prev) => {
+      if (!prev) return prev;
+      const existing = prev.assumptions.college_parent_overrides ?? [];
+      if (value === "") {
+        return { ...prev, assumptions: { ...prev.assumptions, college_parent_overrides: existing.filter((o) => o.child_name !== childName) } };
+      }
+      const amount = parseFloat(value) || 0;
+      const idx = existing.findIndex((o) => o.child_name === childName);
+      const updated = [...existing];
+      if (idx >= 0) {
+        updated[idx] = { ...updated[idx], parent_college_annual: amount };
+      } else {
+        updated.push({ child_name: childName, parent_college_annual: amount });
+      }
+      return { ...prev, assumptions: { ...prev.assumptions, college_parent_overrides: updated } };
+    });
+    setDirty(true);
+  };
+
+  const updatePropertyOverride = (propName: string, field: string, value: string) => {
+    setLocal((prev) => {
+      if (!prev) return prev;
+      const existing = prev.assumptions.property_overrides ?? [];
+      const parsed = value === "" ? null : parseFloat(value);
+      const idx = existing.findIndex((o) => o.name === propName);
+      const updated = [...existing];
+      if (idx >= 0) {
+        const entry = { ...updated[idx], [field]: parsed === null || isNaN(parsed) ? null : parsed };
+        // Remove entry if all override fields are null
+        const { name, ...fields } = entry;
+        if (Object.values(fields).every((v) => v === null || v === undefined)) {
+          updated.splice(idx, 1);
+        } else {
+          updated[idx] = entry;
+        }
+      } else if (parsed !== null && !isNaN(parsed)) {
+        updated.push({ name: propName, [field]: parsed } as PropertyOverride);
+      }
+      return { ...prev, assumptions: { ...prev.assumptions, property_overrides: updated } };
+    });
+    setDirty(true);
+  };
+
   const removeLifeEvent = (index: number) => {
     setLocal((prev) => {
       if (!prev) return prev;
@@ -604,30 +531,32 @@ export function ScenariosPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Scenarios</h2>
+        <h2 className="text-2xl font-bold">Scenario Editor</h2>
         <div className="flex gap-2">
           {local && (
             <>
               <button
-                onClick={runSimulation}
-                disabled={simLoading || dirty}
+                onClick={goToSimulation}
+                disabled={!isReadonly && dirty}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  simLoading || dirty
+                  !isReadonly && dirty
                     ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                     : "bg-emerald-600 text-white hover:bg-emerald-700"
                 }`}
               >
-                {simLoading ? "Running..." : dirty ? "Save first" : "Run Simulation"}
+                {!isReadonly && dirty ? "Save first" : "Run Simulation"}
               </button>
-              <button
-                onClick={save}
-                disabled={!dirty || updateScenario.isPending}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  dirty ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                }`}
-              >
-                {updateScenario.isPending ? "Saving..." : "Save"}
-              </button>
+              {!isReadonly && (
+                <button
+                  onClick={save}
+                  disabled={!dirty || updateScenario.isPending}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    dirty ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  {updateScenario.isPending ? "Saving..." : "Save"}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -639,12 +568,17 @@ export function ScenariosPage() {
           <button
             key={item.slug}
             onClick={() => setSelectedName(item.slug)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
               selectedName === item.slug
                 ? "bg-blue-600 text-white"
                 : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
             }`}
           >
+            {item.readonly && (
+              <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            )}
             {item.name}
           </button>
         ))}
@@ -658,16 +592,22 @@ export function ScenariosPage() {
           <>
             <button
               onClick={() => { setCloneName(`${selectedName}-copy`); setShowClone(true); }}
-              className="px-3 py-2 rounded-md text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                isReadonly
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : "bg-violet-500 text-white hover:bg-violet-600"
+              }`}
             >
-              Clone
+              {isReadonly ? "Copy & Edit" : "Clone"}
             </button>
-            <button
-              onClick={handleDelete}
-              className="px-3 py-2 rounded-md text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50"
-            >
-              Delete
-            </button>
+            {!isReadonly && (
+              <button
+                onClick={handleDelete}
+                className="px-3 py-2 rounded-md text-xs font-medium text-red-500 hover:text-red-700 hover:bg-red-50"
+              >
+                Delete
+              </button>
+            )}
           </>
         )}
       </div>
@@ -705,6 +645,15 @@ export function ScenariosPage() {
       {/* Scenario editor */}
       {local && (
         <div className="flex flex-col gap-4">
+          {isReadonly && (
+            <div className="bg-amber-50 border border-amber-200 rounded-md px-4 py-3 text-sm text-amber-800 flex items-center gap-2">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+              Prebuilt scenario — use "Copy & Edit" to create a customizable version.
+            </div>
+          )}
+          <fieldset disabled={isReadonly} className="contents">
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="grid grid-cols-2 gap-4 mb-4">
               <FormField label="Scenario Name">
@@ -726,15 +675,124 @@ export function ScenariosPage() {
           <InflationEditor inflation={local.assumptions.inflation} onChange={updateInflation} />
           <AllocationEditor allocation={local.assumptions.asset_allocation} onChange={updateAllocation} />
 
+          {/* ─── Profile Overrides ─── */}
+          <div className="bg-white rounded-lg border border-slate-200 p-6">
+            <h4 className="text-sm font-medium text-slate-600 mb-1">Profile Overrides</h4>
+            <p className="text-xs text-slate-400 mb-4">Override profile values for this scenario. Leave blank to use your profile defaults.</p>
+
+            {/* Retirement Ages */}
+            <div className="mb-4">
+              <div className="text-xs font-medium text-slate-500 mb-2">Retirement Ages</div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Primary" hint={profile?.personal?.retirement_age ? `Profile: ${profile.personal.retirement_age}` : undefined}>
+                  <Input
+                    type="number"
+                    placeholder={profile?.personal?.retirement_age?.toString() ?? ""}
+                    value={local.assumptions.retirement_age_primary ?? ""}
+                    onChange={(e) => updateRetirementOverride("retirement_age_primary", e.target.value)}
+                  />
+                </FormField>
+                <FormField label="Spouse" hint={profile?.spouse?.retirement_age ? `Profile: ${profile.spouse.retirement_age}` : undefined}>
+                  <Input
+                    type="number"
+                    placeholder={profile?.spouse?.retirement_age?.toString() ?? ""}
+                    value={local.assumptions.retirement_age_spouse ?? ""}
+                    onChange={(e) => updateRetirementOverride("retirement_age_spouse", e.target.value)}
+                  />
+                </FormField>
+              </div>
+            </div>
+
+            {/* College Parent Payments */}
+            {profile?.children && profile.children.length > 0 && (
+              <div className="mb-4">
+                <div className="text-xs font-medium text-slate-500 mb-2">College Parent Annual Payment</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {profile.children.map((child: { name: string; parent_college_annual?: number }) => {
+                    const override = (local.assumptions.college_parent_overrides ?? []).find((o) => o.child_name === child.name);
+                    return (
+                      <FormField key={child.name} label={child.name} hint={`Profile: $${(child.parent_college_annual ?? 0).toLocaleString()}`}>
+                        <Input
+                          type="number"
+                          placeholder={(child.parent_college_annual ?? 0).toString()}
+                          value={override?.parent_college_annual ?? ""}
+                          onChange={(e) => updateCollegeOverride(child.name, e.target.value)}
+                        />
+                      </FormField>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Property Overrides */}
+            {(() => {
+              const properties = (assetsData?.assets ?? []).filter((a: { type: string }) => a.type === "real_estate");
+              if (properties.length === 0) return null;
+              return (
+                <div>
+                  <div className="text-xs font-medium text-slate-500 mb-2">Property Overrides</div>
+                  <div className="flex flex-col gap-3">
+                    {properties.map((prop: { name: string; properties?: Record<string, number> }) => {
+                      const defaults = prop.properties ?? {};
+                      const override = (local.assumptions.property_overrides ?? []).find((o) => o.name === prop.name);
+                      return (
+                        <div key={prop.name} className="bg-slate-50 rounded-lg border border-slate-200 p-3">
+                          <div className="text-sm font-medium text-slate-600 mb-2">{prop.name}</div>
+                          <div className="grid grid-cols-4 gap-3">
+                            <FormField label="Appreciation %" hint={defaults.appreciation_rate_pct != null ? `Current: ${defaults.appreciation_rate_pct}%` : undefined}>
+                              <Input
+                                type="number" step="0.1"
+                                placeholder={defaults.appreciation_rate_pct?.toString() ?? ""}
+                                value={override?.appreciation_rate_pct ?? ""}
+                                onChange={(e) => updatePropertyOverride(prop.name, "appreciation_rate_pct", e.target.value)}
+                              />
+                            </FormField>
+                            <FormField label="Property Tax" hint={defaults.annual_property_tax ? `Current: $${defaults.annual_property_tax.toLocaleString()}` : undefined}>
+                              <Input
+                                type="number"
+                                placeholder={defaults.annual_property_tax?.toString() ?? ""}
+                                value={override?.annual_property_tax ?? ""}
+                                onChange={(e) => updatePropertyOverride(prop.name, "annual_property_tax", e.target.value)}
+                              />
+                            </FormField>
+                            <FormField label="Carrying Cost" hint={defaults.annual_carrying_cost ? `Current: $${defaults.annual_carrying_cost.toLocaleString()}` : undefined}>
+                              <Input
+                                type="number"
+                                placeholder={defaults.annual_carrying_cost?.toString() ?? ""}
+                                value={override?.annual_carrying_cost ?? ""}
+                                onChange={(e) => updatePropertyOverride(prop.name, "annual_carrying_cost", e.target.value)}
+                              />
+                            </FormField>
+                            <FormField label="Insurance" hint={defaults.annual_insurance ? `Current: $${defaults.annual_insurance.toLocaleString()}` : undefined}>
+                              <Input
+                                type="number"
+                                placeholder={defaults.annual_insurance?.toString() ?? ""}
+                                value={override?.annual_insurance ?? ""}
+                                onChange={(e) => updatePropertyOverride(prop.name, "annual_insurance", e.target.value)}
+                              />
+                            </FormField>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Large Purchases & Events</h3>
-              <button
-                onClick={addPurchase}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
-              >
-                + Add
-              </button>
+              {!isReadonly && (
+                <button
+                  onClick={addPurchase}
+                  className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+                >
+                  + Add
+                </button>
+              )}
             </div>
             <SectionHelp
               summary="Major real estate purchases or rental conversions. Down payments come directly from your liquid portfolio. New properties appreciate and add to illiquid net worth."
@@ -760,12 +818,14 @@ export function ScenariosPage() {
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold">Life Events</h3>
-              <button
-                onClick={addLifeEvent}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
-              >
-                + Add
-              </button>
+              {!isReadonly && (
+                <button
+                  onClick={addLifeEvent}
+                  className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+                >
+                  + Add
+                </button>
+              )}
             </div>
             <SectionHelp
               summary="One-time cash events (inheritance, windfall, large gift, etc.). Positive amounts add to your liquid portfolio; negative amounts subtract from it."
@@ -812,8 +872,7 @@ export function ScenariosPage() {
             </div>
           </div>
 
-          {/* Simulation results */}
-          <SimResults det={det} mc={mc} />
+          </fieldset>
         </div>
       )}
 

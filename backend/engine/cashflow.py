@@ -47,8 +47,12 @@ def project_cashflows(
 
     base_year = start_year or 2026
     birth_year = personal["birth_year"]
-    # Support both retirement_age (new) and retirement_target_year (legacy)
-    if "retirement_age" in personal:
+    # Support both retirement_age (new) and retirement_target_year (legacy).
+    # Scenario-level overrides take precedence when set.
+    ret_override = assumptions.get("retirement_age_primary")
+    if ret_override is not None:
+        retirement_year = birth_year + ret_override
+    elif "retirement_age" in personal:
         retirement_year = birth_year + personal["retirement_age"]
     else:
         retirement_year = personal["retirement_target_year"]
@@ -56,7 +60,10 @@ def project_cashflows(
     # Spouse retirement year (independent of primary)
     spouse = profile.get("spouse")
     if spouse:
-        if "retirement_age" in spouse:
+        spouse_ret_override = assumptions.get("retirement_age_spouse")
+        if spouse_ret_override is not None:
+            spouse_retirement_year = spouse["birth_year"] + spouse_ret_override
+        elif "retirement_age" in spouse:
             spouse_retirement_year = spouse["birth_year"] + spouse["retirement_age"]
         else:
             spouse_retirement_year = spouse.get("retirement_target_year", retirement_year)
@@ -70,8 +77,8 @@ def project_cashflows(
     if not start_year:
         start_year = base_year
 
-    # Initialize mutable state
-    state = _init_state(assets, profile)
+    # Initialize mutable state (pass assumptions for scenario-level overrides)
+    state = _init_state(assets, profile, assumptions)
 
     results = []
     for year in range(start_year, end_year + 1):
@@ -94,7 +101,7 @@ def project_cashflows(
     return results
 
 
-def _init_state(assets: dict, profile: dict) -> dict:
+def _init_state(assets: dict, profile: dict, assumptions: dict | None = None) -> dict:
     """Initialize mutable simulation state from assets and profile.
 
     Pool architecture (see docs/engine-rework-spec.md):
@@ -159,6 +166,17 @@ def _init_state(assets: dict, profile: dict) -> dict:
                 "appreciation_rate_pct": props.get("appreciation_rate_pct"),  # None = use scenario default
             })
 
+    # Apply scenario-level property overrides (appreciation, tax, etc.)
+    if assumptions:
+        for override in assumptions.get("property_overrides", []):
+            for prop in properties:
+                if prop["name"] == override["name"]:
+                    for field in ("appreciation_rate_pct", "annual_property_tax",
+                                  "annual_carrying_cost", "annual_insurance"):
+                        val = override.get(field)
+                        if val is not None:
+                            prop[field] = val
+
     # Deep copy children for 529 tracking
     children = []
     for c in profile.get("children", []):
@@ -167,6 +185,13 @@ def _init_state(assets: dict, profile: dict) -> dict:
             child["current_school"] = dict(child["current_school"])
         child["_529_balance"] = child.get("plan_529_balance", 0)
         children.append(child)
+
+    # Apply scenario-level college parent payment overrides
+    if assumptions:
+        for override in assumptions.get("college_parent_overrides", []):
+            for child in children:
+                if child["name"] == override["child_name"]:
+                    child["parent_college_annual"] = override["parent_college_annual"]
 
     # ── RSU state (simplified: aggregate held shares + one cost basis) ──
     # See docs/engine-rework-spec.md RSU section:

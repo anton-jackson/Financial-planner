@@ -1,7 +1,7 @@
 schema_version: 1
-
-name: "Bull Case"
-description: "Optimistic assumptions - strong market returns, lower inflation"
+name: Bull Case
+description: Optimistic — strong market returns, lower inflation
+readonly: true
 
 assumptions:
   investment_returns:
@@ -19,56 +19,35 @@ assumptions:
 
   asset_allocation:
     pre_retirement:
-      stocks_pct: 80
-      bonds_pct: 15
-      cash_pct: 5
+      stocks_pct: 80.0
+      bonds_pct: 15.0
+      cash_pct: 5.0
     post_retirement:
-      stocks_pct: 60
-      bonds_pct: 30
-      cash_pct: 10
+      stocks_pct: 60.0
+      bonds_pct: 30.0
+      cash_pct: 10.0
     glide_path_start_years_before: 5
 
   college:
-    annual_cost_today: 60000
-    room_and_board_today: 16000
-    financial_aid_annual: 5000
-    scholarship_annual: 5000
+    annual_cost_today: 60000.0
+    room_and_board_today: 16000.0
+    financial_aid_annual: 5000.0
+    scholarship_annual: 5000.0
 
   social_security:
-    primary_pia_at_67: 3500
-    spouse_pia_at_67: 2000
+    primary_pia_at_67: 3500.0
+    spouse_pia_at_67: 2000.0
     claiming_age_primary: 67
     claiming_age_spouse: 67
     cola_pct: 2.5
 
   healthcare:
-    annual_premium_today: 22000
-    annual_out_of_pocket_today: 5000
+    annual_premium_today: 22000.0
+    annual_out_of_pocket_today: 5000.0
     pre_medicare_gap_years: 2
-    aca_marketplace_annual: 28000
-    medicare_annual: 7500
+    aca_marketplace_annual: 28000.0
+    medicare_annual: 7500.0
 
-  large_purchases:
-    - name: "Second Home"
-      year: 2028
-      purchase_price: 450000
-      down_payment_pct: 25
-      mortgage_rate_pct: 5.5
-      mortgage_term_years: 30
-      is_rental_conversion: false
-
-    - name: "Primary to Rental Conversion"
-      year: 2030
-      is_rental_conversion: true
-      conversion_cost: 25000
-      monthly_rental_income: 4000
-      vacancy_rate_pct: 5
-      annual_maintenance_pct: 0.8
-      property_management_pct: 10
-      current_mortgage_balance: 280000
-      current_mortgage_payment: 2100
-
-  return_profiles:
-    crypto:
-      mean_pct: 18.0
-      stddev_pct: 45.0
+  large_purchases: []
+  life_events: []
+  return_profiles: {}
