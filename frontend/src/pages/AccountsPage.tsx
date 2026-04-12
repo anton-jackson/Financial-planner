@@ -336,7 +336,7 @@ export function AccountsPage() {
   const [assetsDirty, setAssetsDirty] = useState(false);
   const [holdingsDirty, setHoldingsDirty] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
+  const [expandedAccount, setExpandedAccount] = useState<number | null>(null);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
   const [holdingsSaving, setHoldingsSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -588,7 +588,7 @@ export function AccountsPage() {
   // Render a single account card
   const renderAccountCard = (asset: Asset, actualIndex: number) => {
     const acctHoldings = getAccountHoldings(asset.name);
-    const isExpanded = expandedAccount === asset.name;
+    const isExpanded = expandedAccount === actualIndex;
     const holdingsTotal = acctHoldings
       ? acctHoldings.holdings.reduce((s, h) => s + (h.market_value || h.shares * h.price), 0)
       : 0;
@@ -598,7 +598,7 @@ export function AccountsPage() {
         {/* Account header */}
         <div
           className="p-4 cursor-pointer"
-          onClick={() => setExpandedAccount(isExpanded ? null : asset.name)}
+          onClick={() => setExpandedAccount(isExpanded ? null : actualIndex)}
         >
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
