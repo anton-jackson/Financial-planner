@@ -1,6 +1,56 @@
 from pydantic import BaseModel
 
 
+class CashFlowWaterfall(BaseModel):
+    """Auditable per-year cash flow breakdown (see docs/engine-rework-spec.md)."""
+    # Inflows
+    earned_income: float = 0
+    rsu_vest_income: float = 0
+    social_security: float = 0
+    rental_income: float = 0
+    rmd_gross: float = 0
+    rmd_tax: float = 0
+    rmd_net: float = 0
+    rmd_primary: float = 0
+    rmd_spouse: float = 0
+    windfall_gross: float = 0
+    windfall_net: float = 0
+    # Outflows
+    living_expenses: float = 0
+    healthcare: float = 0
+    mortgage: float = 0
+    college: float = 0
+    vehicle: float = 0
+    debt_payments: float = 0
+    property_costs: float = 0
+    large_purchase: float = 0
+    total_expenses: float = 0
+    # Tax
+    federal_income_tax: float = 0
+    state_tax: float = 0
+    fica: float = 0
+    ltcg_tax: float = 0
+    niit: float = 0
+    total_tax: float = 0
+    # Portfolio withdrawals
+    from_taxable: float = 0
+    from_traditional: float = 0
+    from_roth: float = 0
+    from_hsa_medical: float = 0
+    # Returns per pool
+    returns_traditional_primary: float = 0
+    returns_traditional_spouse: float = 0
+    returns_roth: float = 0
+    returns_taxable: float = 0
+    returns_hsa: float = 0
+    # End-of-year balances
+    balance_traditional_primary: float = 0
+    balance_traditional_spouse: float = 0
+    balance_roth: float = 0
+    balance_taxable: float = 0
+    balance_hsa: float = 0
+
+
 class YearRow(BaseModel):
     year: int
     age_primary: int
@@ -38,13 +88,21 @@ class YearRow(BaseModel):
     withdrawal_from_taxable: float = 0
     withdrawal_from_traditional: float = 0
     withdrawal_from_roth: float = 0
+    withdrawal_from_hsa: float = 0
+    rmd_primary: float = 0
+    rmd_spouse: float = 0
     net_worth: float
     liquid_net_worth: float
+    # Aggregate balance across both owner sub-pools (back-compat)
     traditional_balance: float = 0
+    traditional_primary_balance: float = 0
+    traditional_spouse_balance: float = 0
     roth_balance: float = 0
     taxable_balance: float = 0
+    hsa_balance: float = 0
     real_estate_equity: float = 0
     events: list[str] = []
+    cash_flow: CashFlowWaterfall | None = None
 
 
 class DeterministicResult(BaseModel):
