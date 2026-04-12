@@ -108,7 +108,21 @@ Considerations:
 - May be more useful once the tool is in daily use vs. setup phase
 
 ### Side-by-Side Scenario Comparison
-Visual overlay of multiple scenario trajectories on one chart. Already partially supported via `/simulate/compare` endpoint — needs dedicated UI.
+Visual overlay of multiple scenario trajectories on one chart. Already partially supported via `/simulate/compare` endpoint — needs dedicated UI. Multi-select on the simulation page exists but the comparison display doesn't work well.
+
+### Surface Engine Assumptions in UI
+Every value the engine assumes should be visible to the user on the relevant page, even if not editable today. Users shouldn't be surprised by costs they didn't enter (e.g., "Employer healthcare: $50,684" appearing in simulation events).
+
+Two layers:
+- **Inline on relevant pages**: Show assumed values where they apply (healthcare costs on healthcare section, tax brackets on tax summary, RMD rules on retirement page). Non-editable values shown as read-only with a note like "Based on 2026 IRS rules."
+- **How It Works page**: Already exists as a comprehensive reference, but not a substitute for inline visibility.
+
+Key assumed values to surface:
+- Scenario defaults (editable): healthcare premiums/OOP, ACA, Medicare, college costs, SS PIAs, inflation rates, returns, allocations
+- Engine constants (not editable): federal tax brackets, standard deductions, LTCG brackets, NIIT (3.8%), additional Medicare (0.9%), FICA (6.2%/1.45%), CTC ($2k/child), state tax rates, RMD start age (73), IRS Uniform Lifetime Table, SS claiming factors, rental insurance default ($2,400)
+
+### Update Onboarding Wizard
+Onboarding wizard needs updating. Scope TBD.
 
 ### Cost Basis Tracking
 Per-lot cost basis entry for tax-aware rebalancing. Useful for the AI advisor (tax loss harvesting suggestions, optimal lot selection for sales).
