@@ -1,21 +1,16 @@
 # Feature Backlog
 
-## Completed
-
-- **AI Advisor Agent** — Conversational agent with tool-use loop, collapsible side panel, sandbox for write output. See `docs/agent-architecture.md`.
-- **Portfolio Holdings & Rebalance Calculator** — Per-account holdings entry, live market data via yfinance, cross-account rebalance calculator with tax-aware trade suggestions.
-- **Windfalls & Inheritances** — Permanent profile-level cash events (one-time and recurring) included in every simulation. Separate from scenario life events.
-- **Onboarding Wizard** — 5-step first-time setup flow with spouse support, account balances, and auto-scenario bootstrapping.
-- **Cloud Run Deployment** — Deploy scripts (local + remote), combined Dockerfile, GCS-FUSE persistence, Route 53 DNS automation. See `deploy/README.md`.
-
----
-
-## Planned — Cloud Deployment
-- ~~**Cloud Run deploy (P3)** — one instance per user, deploy script, GCS-FUSE storage.~~ Done. See `deploy/README.md`.
+Sections:
+- [Feature Ideas](#feature-ideas) — active backlog
+- [Features Best Served by AI Agent](#features-best-served-by-ai-agent) — intentionally not built as static UI
+- [Local ↔ Cloud Run Sync](#local--cloud-run-sync) — infrastructure idea
+- [Completed](#completed) — shipped features
 
 ---
 
 ## Feature Ideas
+
+Ordered roughly by concreteness of spec / readiness to pick up.
 
 ### Plaid Integration — Account Linking
 
@@ -98,18 +93,6 @@ Upload a CSV export from any brokerage to populate holdings. Lower friction than
 - Vanguard: Fund Name, Symbol, Shares, Share Price, Total Value
 - Generic: auto-detect by header matching
 
-### Periodic Status Snapshots
-Auto-save a point-in-time snapshot of profile + assets + net worth at regular intervals. Creates a historical record you can look back on.
-
-Considerations:
-- How often? Monthly? On each simulation run?
-- Storage format — timestamped YAML/JSON in a `snapshots/` directory?
-- Diff view — show what changed between snapshots?
-- May be more useful once the tool is in daily use vs. setup phase
-
-### Side-by-Side Scenario Comparison
-Visual overlay of multiple scenario trajectories on one chart. Already partially supported via `/simulate/compare` endpoint — needs dedicated UI. Multi-select on the simulation page exists but the comparison display doesn't work well.
-
 ### Surface Engine Assumptions in UI
 Every value the engine assumes should be visible to the user on the relevant page, even if not editable today. Users shouldn't be surprised by costs they didn't enter (e.g., "Employer healthcare: $50,684" appearing in simulation events).
 
@@ -121,14 +104,26 @@ Key assumed values to surface:
 - Scenario defaults (editable): healthcare premiums/OOP, ACA, Medicare, college costs, SS PIAs, inflation rates, returns, allocations
 - Engine constants (not editable): federal tax brackets, standard deductions, LTCG brackets, NIIT (3.8%), additional Medicare (0.9%), FICA (6.2%/1.45%), CTC ($2k/child), state tax rates, RMD start age (73), IRS Uniform Lifetime Table, SS claiming factors, rental insurance default ($2,400)
 
-### Update Onboarding Wizard
-Onboarding wizard needs updating. Scope TBD.
+### Side-by-Side Scenario Comparison
+Visual overlay of multiple scenario trajectories on one chart. Already partially supported via `/simulate/compare` endpoint — needs dedicated UI. Multi-select on the simulation page exists but the comparison display doesn't work well.
 
 ### Cost Basis Tracking
 Per-lot cost basis entry for tax-aware rebalancing. Useful for the AI advisor (tax loss harvesting suggestions, optimal lot selection for sales).
 
+### Periodic Status Snapshots
+Auto-save a point-in-time snapshot of profile + assets + net worth at regular intervals. Creates a historical record you can look back on.
+
+Considerations:
+- How often? Monthly? On each simulation run?
+- Storage format — timestamped YAML/JSON in a `snapshots/` directory?
+- Diff view — show what changed between snapshots?
+- May be more useful once the tool is in daily use vs. setup phase
+
 ### Phase-Based Expense/Savings Overrides
 Model life phases with different spending/saving profiles (e.g., kids at home, empty nest, early retirement, late retirement). Currently modeled as a single retirement reduction percentage.
+
+### Update Onboarding Wizard
+Onboarding wizard needs updating. Scope TBD.
 
 ---
 
@@ -171,3 +166,13 @@ Enable bidirectional sync between a local copy of the flat files and the Cloud R
 **Conflict handling:** Last-write-wins is fine for single-user instances. Could add a schema_version or timestamp check to warn if cloud data changed since last pull.
 
 **Why this matters:** The AI agent needs local file access to be most useful. Sync bridges the gap between cloud convenience and local agent power.
+
+---
+
+## Completed
+
+- **AI Advisor Agent** — Conversational agent with tool-use loop, collapsible side panel, sandbox for write output. See `docs/agent-architecture.md`.
+- **Portfolio Holdings & Rebalance Calculator** — Per-account holdings entry, live market data via yfinance, cross-account rebalance calculator with tax-aware trade suggestions.
+- **Windfalls & Inheritances** — Permanent profile-level cash events (one-time and recurring) included in every simulation. Separate from scenario life events.
+- **Onboarding Wizard** — 5-step first-time setup flow with spouse support, account balances, and auto-scenario bootstrapping.
+- **Cloud Run Deployment** — Deploy scripts (local + remote), combined Dockerfile, GCS-FUSE persistence, Route 53 DNS automation. See `deploy/README.md`.
