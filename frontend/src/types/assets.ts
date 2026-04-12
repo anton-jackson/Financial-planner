@@ -3,6 +3,7 @@ export interface Asset {
   type: string;
   balance: number;
   return_profile: string;
+  owner: string; // "primary", "spouse", or "joint"
   properties: Record<string, unknown>;
 }
 

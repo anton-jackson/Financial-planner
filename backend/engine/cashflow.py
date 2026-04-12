@@ -280,7 +280,9 @@ def _project_year(
             spouse_salary = spouse_inc["base_salary"] * (
                 1 + spouse_inc.get("annual_raise_pct", 2.5) / 100
             ) ** years_from_start
-            gross_income += spouse_salary
+            spouse_bonus_pct = spouse_inc.get("bonus_pct", 0)
+            spouse_bonus = spouse_salary * spouse_bonus_pct / 100
+            gross_income += spouse_salary + spouse_bonus
 
     # --- RSU processing (runs pre- and post-retirement for vesting/sales) ---
     rsu_st = state["rsu"]

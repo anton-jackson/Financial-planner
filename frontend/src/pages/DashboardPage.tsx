@@ -133,6 +133,10 @@ export function DashboardPage() {
   }, [profile, sliders]);
 
   const totalBalance = assetsFile?.assets.reduce((sum, a) => sum + a.balance, 0) ?? 0;
+  const illiquidBalance = assetsFile?.assets
+    .filter((a) => a.type === "real_estate")
+    .reduce((sum, a) => sum + a.balance, 0) ?? 0;
+  const liquidBalance = totalBalance - illiquidBalance;
   const currentYear = new Date().getFullYear();
 
   // Build overrides only for values that differ from profile defaults
@@ -336,7 +340,7 @@ export function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Assets" value={`$${totalBalance.toLocaleString()}`} />
+        <StatCard label="Total Assets" value={fmt(totalBalance)} sub={`Liquid: ${fmt(liquidBalance)} · Illiquid: ${fmt(illiquidBalance)}`} />
         <StatCard
           label="Years to Retirement"
           value={String(yearsToRetirement)}

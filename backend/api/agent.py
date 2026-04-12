@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 from config import ANTHROPIC_API_KEY
 from dependencies import get_storage
-from agent.loop import run_agent_loop
 from storage.local import LocalFileStorage
 
 router = APIRouter()
@@ -41,6 +40,14 @@ def chat(
         raise HTTPException(
             status_code=503,
             detail="AI agent not configured. Set the ANTHROPIC_API_KEY environment variable.",
+        )
+
+    try:
+        from agent.loop import run_agent_loop
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="AI agent dependencies not installed (pip install anthropic).",
         )
 
     response_text, updated_history = run_agent_loop(

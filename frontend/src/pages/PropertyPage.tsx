@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAssets, useUpdateAssets } from "../hooks/useAssets";
+import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
 import type { Asset, AssetsFile } from "../types/assets";
@@ -15,17 +16,16 @@ export function PropertyPage() {
     if (assetsData) setLocalAssets(assetsData);
   }, [assetsData]);
 
-  if (isLoading) return <div className="text-slate-400">Loading...</div>;
-  if (error) return <div className="text-red-500">Error loading data</div>;
-  if (!localAssets) return null;
-
-  const saving = updateAssets.isPending;
-
   const save = () => {
-    if (dirty) {
+    if (dirty && localAssets) {
       updateAssets.mutate(localAssets, { onSuccess: () => setDirty(false) });
     }
   };
+  const { status: saveStatus } = useAutoSave(save, dirty, updateAssets.isPending);
+
+  if (isLoading) return <div className="text-slate-400">Loading...</div>;
+  if (error) return <div className="text-red-500">Error loading data</div>;
+  if (!localAssets) return null;
 
   // Build list of real_estate entries with their actual index in the full array
   const properties = localAssets.assets
@@ -106,17 +106,7 @@ export function PropertyPage() {
             {totalMortgage.toLocaleString()} · Equity: ${totalEquity.toLocaleString()}
           </p>
         </div>
-        <button
-          onClick={save}
-          disabled={!dirty || saving}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-            dirty
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-slate-100 text-slate-400 cursor-not-allowed"
-          }`}
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+        {saveStatus && <span className="text-xs text-slate-400">{saveStatus}</span>}
       </div>
 
       <SectionHelp
@@ -130,9 +120,7 @@ export function PropertyPage() {
       />
 
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-semibold">
-          {properties.length} {properties.length === 1 ? "Property" : "Properties"}
-        </h3>
+        <h3 className="text-lg font-semibold">Properties</h3>
         <button onClick={addProperty} className="text-sm text-blue-600 hover:text-blue-800">
           + Add Property
         </button>
@@ -242,7 +230,7 @@ export function PropertyPage() {
                     }
                   />
                 </FormField>
-                <FormField label="Annual Carrying Cost" hint="Maint, HOA, utilities">
+                <FormField label="Annual Carrying Cost" hint="Property-driven costs only (maintenance, HOA, landscaping). Exclude utilities — those belong in household expenses.">
                   <Input
                     type="number"
                     value={(props.annual_carrying_cost as number) ?? 0}

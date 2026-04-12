@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProfile, useUpdateProfile } from "../hooks/useProfile";
+import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
 import type { Profile, Windfall } from "../types/profile";
@@ -25,15 +26,16 @@ export function WindfallsPage() {
     if (profile) setLocal(profile);
   }, [profile]);
 
+  const save = () => {
+    if (local) updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
+  };
+  const { status: saveStatus } = useAutoSave(save, dirty, updateProfile.isPending);
+
   if (isLoading) return <div className="text-slate-400">Loading...</div>;
   if (error) return <div className="text-red-500">Error loading profile</div>;
   if (!local) return null;
 
   const windfalls = local.windfalls ?? [];
-
-  const save = () => {
-    updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
-  };
 
   const addWindfall = () => {
     setLocal((prev) => {
@@ -77,13 +79,7 @@ export function WindfallsPage() {
             Known future cash events that apply to every simulation.
           </p>
         </div>
-        <button
-          onClick={save}
-          disabled={!dirty || updateProfile.isPending}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${dirty ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
-        >
-          {updateProfile.isPending ? "Saving..." : "Save Changes"}
-        </button>
+        {saveStatus && <span className="text-xs text-slate-400">{saveStatus}</span>}
       </div>
 
       {/* Summary */}

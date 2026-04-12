@@ -740,6 +740,7 @@ function buildProfile(d: WizardState) {
       college_start_year: c.birth_year + 18,
       college_years: 4,
       current_school: null,
+      school_stages: [],
       plan_529_balance: 0,
       plan_529_monthly_contribution: 0,
       parent_college_annual: 0,
@@ -767,8 +768,9 @@ function buildProfile(d: WizardState) {
         refresh_sale_year: null,
       },
       spouse: d.has_spouse
-        ? { base_salary: d.spouse_salary, annual_raise_pct: d.spouse_raise_pct }
+        ? { base_salary: d.spouse_salary, annual_raise_pct: d.spouse_raise_pct, bonus_pct: 0, bonus_variability_pct: 5 }
         : null,
+      spouse_rsu: null,
     },
     savings: {
       primary: {

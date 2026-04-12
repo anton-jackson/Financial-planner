@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useProfile, useUpdateProfile } from "../hooks/useProfile";
+import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
 import type { Profile, ExistingVehicle, VehiclePurchase } from "../types/profile";
@@ -35,6 +36,11 @@ export function VehiclesPage() {
     if (profile) setLocal(profile);
   }, [profile]);
 
+  const save = () => {
+    if (local) updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
+  };
+  const { status: saveStatus } = useAutoSave(save, dirty, updateProfile.isPending);
+
   if (isLoading) return <div className="text-slate-400">Loading...</div>;
   if (error) return <div className="text-red-500">Error loading profile</div>;
   if (!local) return null;
@@ -44,10 +50,6 @@ export function VehiclesPage() {
 
   const totalVehicleValue = existingVehicles.reduce((sum, v) => sum + v.current_value, 0);
   const totalVehicleLoans = existingVehicles.reduce((sum, v) => sum + v.loan_balance, 0);
-
-  const save = () => {
-    updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
-  };
 
   // ─── Existing Vehicle helpers ────────────────────────────────────
 
@@ -115,13 +117,7 @@ export function VehiclesPage() {
             {totalVehicleLoans > 0 && <> · Total Loans: ${totalVehicleLoans.toLocaleString()}</>}
           </p>
         </div>
-        <button
-          onClick={save}
-          disabled={!dirty || updateProfile.isPending}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${dirty ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
-        >
-          {updateProfile.isPending ? "Saving..." : "Save Changes"}
-        </button>
+        {saveStatus && <span className="text-xs text-slate-400">{saveStatus}</span>}
       </div>
 
       {/* Current Vehicles */}
@@ -155,11 +151,31 @@ export function VehiclesPage() {
                 <FormField label="Depreciation %/yr">
                   <Input type="number" step="1" value={v.depreciation_pct} onChange={(e) => updateExistingVehicle(i, "depreciation_pct", parseFloat(e.target.value) || 0)} />
                 </FormField>
-                <FormField label="Loan Balance" help="0 if owned outright">
-                  <Input type="number" value={v.loan_balance} onChange={(e) => updateExistingVehicle(i, "loan_balance", parseFloat(e.target.value) || 0)} />
-                </FormField>
-                {v.loan_balance > 0 && (
-                  <>
+              </div>
+              <div className="mt-3 border-t border-slate-200 pt-3">
+                <label className="flex items-center gap-2 text-sm text-slate-600 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={v.loan_balance > 0 || v.monthly_payment > 0}
+                    onChange={(e) => {
+                      if (!e.target.checked) {
+                        updateExistingVehicle(i, "loan_balance", 0);
+                        updateExistingVehicle(i, "monthly_payment", 0);
+                        updateExistingVehicle(i, "loan_remaining_months", 0);
+                      } else {
+                        // Set a placeholder so fields appear
+                        updateExistingVehicle(i, "loan_remaining_months", 60);
+                      }
+                    }}
+                    className="rounded border-slate-300"
+                  />
+                  Has loan
+                </label>
+                {(v.loan_balance > 0 || v.monthly_payment > 0 || v.loan_remaining_months > 0) && (
+                  <div className="grid grid-cols-4 gap-3">
+                    <FormField label="Loan Balance">
+                      <Input type="number" value={v.loan_balance} onChange={(e) => updateExistingVehicle(i, "loan_balance", parseFloat(e.target.value) || 0)} />
+                    </FormField>
                     <FormField label="Loan Rate %">
                       <Input type="number" step="0.1" value={v.loan_rate_pct} onChange={(e) => updateExistingVehicle(i, "loan_rate_pct", parseFloat(e.target.value) || 0)} />
                     </FormField>
@@ -169,7 +185,7 @@ export function VehiclesPage() {
                     <FormField label="Months Remaining">
                       <Input type="number" value={v.loan_remaining_months} onChange={(e) => updateExistingVehicle(i, "loan_remaining_months", parseInt(e.target.value) || 0)} />
                     </FormField>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

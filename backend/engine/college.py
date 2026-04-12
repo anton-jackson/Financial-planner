@@ -42,15 +42,28 @@ def compute_college_costs(
         college_start = child["college_start_year"]
         college_end = college_start + child.get("college_years", 4)
 
-        # Private high school tuition
-        school = child.get("current_school")
-        if school and school.get("annual_tuition", 0) > 0:
-            if year < school.get("ends_year", college_start):
-                hs_cost = real_to_nominal(
-                    school["annual_tuition"], year, base_year, general_inflation_pct
-                )
-                total_cost += hs_cost
-                events.append(f"{name} private school: ${hs_cost:,.0f}")
+        # Pre-college school stages (middle school, high school, etc.)
+        stages = child.get("school_stages", [])
+        if stages:
+            for stage in stages:
+                start = stage.get("start_year", 0)
+                end = stage.get("end_year", 0)
+                tuition = stage.get("annual_tuition", 0)
+                if tuition > 0 and start <= year <= end:
+                    cost = real_to_nominal(tuition, year, base_year, general_inflation_pct)
+                    total_cost += cost
+                    stage_name = stage.get("name", "school")
+                    events.append(f"{name} {stage_name}: ${cost:,.0f}")
+        else:
+            # Legacy: single current_school field
+            school = child.get("current_school")
+            if school and school.get("annual_tuition", 0) > 0:
+                if year < school.get("ends_year", college_start):
+                    hs_cost = real_to_nominal(
+                        school["annual_tuition"], year, base_year, general_inflation_pct
+                    )
+                    total_cost += hs_cost
+                    events.append(f"{name} private school: ${hs_cost:,.0f}")
 
         # College years
         if college_start <= year < college_end:

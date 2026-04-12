@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import { useAgent } from "../agent/AgentContext";
 
+const OVERVIEW_LINKS = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+];
+
 const DATA_LINKS = [
   { to: "/profile", label: "Profile", icon: User },
   { to: "/income", label: "Income & Savings", icon: DollarSign },
@@ -26,11 +30,10 @@ const DATA_LINKS = [
   { to: "/vehicles", label: "Vehicles", icon: Car },
   { to: "/debt", label: "Debt", icon: CreditCard },
   { to: "/windfalls", label: "Windfalls", icon: Gift },
-  { to: "/college", label: "College Planning", icon: GraduationCap },
+  { to: "/college", label: "Education Planning", icon: GraduationCap },
 ];
 
 const ANALYSIS_LINKS = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/retirement", label: "Retirement", icon: PiggyBank },
   { to: "/planning", label: "Planning", icon: Target },
   { to: "/scenarios", label: "Scenarios", icon: Layers },
@@ -47,6 +50,22 @@ export function Sidebar() {
         <h1 className="text-lg font-semibold text-white">Finance Planner</h1>
       </div>
       <nav className="flex-1 p-2">
+        {OVERVIEW_LINKS.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                isActive
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`
+            }
+          >
+            <Icon size={18} />
+            {label}
+          </NavLink>
+        ))}
         <p className="text-xs text-slate-500 px-3 pt-4 pb-1">YOUR DATA</p>
         {DATA_LINKS.map(({ to, label, icon: Icon }) => (
           <NavLink

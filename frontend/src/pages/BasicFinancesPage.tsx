@@ -1,49 +1,29 @@
 import { useEffect, useState } from "react";
 import { useProfile, useUpdateProfile } from "../hooks/useProfile";
+import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
-import type { Profile, PersonSavings, Expenses, TaxConfig, VestingTranche } from "../types/profile";
+import type { Profile, PersonSavings, Expenses, TaxConfig, VestingTranche, RSUHolding } from "../types/profile";
 
-// ─── Income Section ───────────────────────────────────────────────
+// ─── RSU Sub-section ──────────────────────────────────────────────
 
-function IncomeSection({
-  income,
+function RSUSection({
+  rsu,
+  rsuKey,
   onChange,
   onAddTranche,
   onUpdateTranche,
   onRemoveTranche,
 }: {
-  income: Profile["income"];
+  rsu: RSUHolding;
+  rsuKey: string;
   onChange: (section: string, field: string, value: number) => void;
   onAddTranche: () => void;
   onUpdateTranche: (index: number, field: string, value: number) => void;
   onRemoveTranche: (index: number) => void;
 }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-6">
-      <h3 className="text-lg font-semibold mb-4">Income</h3>
-      <SectionHelp
-        summary="Income grows with annual raises until retirement, then stops. Bonus is a percentage of base salary."
-        details={[
-          "Salary each year = base_salary x (1 + raise%)^years. Bonus = salary x bonus%.",
-          "Total comp (salary + bonus) is the basis for 401k contribution rate calculations.",
-          "All income stops at retirement age. Social Security and rental income take over.",
-        ]}
-      />
-      <h4 className="text-sm font-medium text-slate-500 mb-3">Primary Income</h4>
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <FormField label="Base Salary">
-          <Input type="number" value={income.primary.base_salary} onChange={(e) => onChange("primary", "base_salary", parseFloat(e.target.value) || 0)} />
-        </FormField>
-        <FormField label="Annual Raise %">
-          <Input type="number" step="0.1" value={income.primary.annual_raise_pct} onChange={(e) => onChange("primary", "annual_raise_pct", parseFloat(e.target.value) || 0)} />
-        </FormField>
-        <FormField label="Bonus %">
-          <Input type="number" step="0.1" value={income.primary.bonus_pct} onChange={(e) => onChange("primary", "bonus_pct", parseFloat(e.target.value) || 0)} />
-        </FormField>
-      </div>
-
-      <h4 className="text-sm font-medium text-slate-500 mb-3">RSU Holdings</h4>
+    <>
       <SectionHelp
         summary="RSU stock price grows from an initial rate and glides to a long-term rate. At vest, a % of shares is sold to cover tax (sell-to-cover)."
         details={[
@@ -55,19 +35,19 @@ function IncomeSection({
       />
       <div className="grid grid-cols-2 gap-4 mb-4">
         <FormField label="Current Price / Share">
-          <Input type="number" step="0.01" value={income.rsu.current_price} onChange={(e) => onChange("rsu", "current_price", parseFloat(e.target.value) || 0)} />
+          <Input type="number" step="0.01" value={rsu.current_price} onChange={(e) => onChange(rsuKey, "current_price", parseFloat(e.target.value) || 0)} />
         </FormField>
         <FormField label="Initial Growth Rate %" hint="Near-term">
-          <Input type="number" step="0.1" value={income.rsu.annual_growth_rate_pct} onChange={(e) => onChange("rsu", "annual_growth_rate_pct", parseFloat(e.target.value) || 0)} />
+          <Input type="number" step="0.1" value={rsu.annual_growth_rate_pct} onChange={(e) => onChange(rsuKey, "annual_growth_rate_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
         <FormField label="Long-Term Growth Rate %" hint="After transition">
-          <Input type="number" step="0.1" value={income.rsu.long_term_growth_rate_pct ?? ""} onChange={(e) => onChange("rsu", "long_term_growth_rate_pct", e.target.value ? parseFloat(e.target.value) : 0)} />
+          <Input type="number" step="0.1" value={rsu.long_term_growth_rate_pct ?? ""} onChange={(e) => onChange(rsuKey, "long_term_growth_rate_pct", e.target.value ? parseFloat(e.target.value) : 0)} />
         </FormField>
         <FormField label="Transition Years">
-          <Input type="number" value={income.rsu.growth_transition_years} onChange={(e) => onChange("rsu", "growth_transition_years", parseInt(e.target.value) || 0)} />
+          <Input type="number" value={rsu.growth_transition_years} onChange={(e) => onChange(rsuKey, "growth_transition_years", parseInt(e.target.value) || 0)} />
         </FormField>
         <FormField label="Sell-to-Cover %" hint="Shares sold at vest for tax">
-          <Input type="number" step="0.1" value={income.rsu.sell_to_cover_pct} onChange={(e) => onChange("rsu", "sell_to_cover_pct", parseFloat(e.target.value) || 0)} />
+          <Input type="number" step="0.1" value={rsu.sell_to_cover_pct} onChange={(e) => onChange(rsuKey, "sell_to_cover_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
       </div>
 
@@ -75,18 +55,18 @@ function IncomeSection({
         <h5 className="text-xs font-medium text-slate-500 mb-3">Vested Shares (in brokerage)</h5>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Shares">
-            <Input type="number" value={income.rsu.vested_shares} onChange={(e) => onChange("rsu", "vested_shares", parseFloat(e.target.value) || 0)} />
+            <Input type="number" value={rsu.vested_shares} onChange={(e) => onChange(rsuKey, "vested_shares", parseFloat(e.target.value) || 0)} />
           </FormField>
           <FormField label="Avg Vest Price">
-            <Input type="number" step="0.01" value={income.rsu.vested_price} onChange={(e) => onChange("rsu", "vested_price", parseFloat(e.target.value) || 0)} />
+            <Input type="number" step="0.01" value={rsu.vested_price} onChange={(e) => onChange(rsuKey, "vested_price", parseFloat(e.target.value) || 0)} />
           </FormField>
           <FormField label="Cost Basis" hint="Shares x vest price">
             <div className="px-3 py-2 bg-white border border-slate-200 rounded-md text-sm font-medium">
-              ${Math.round(income.rsu.vested_shares * income.rsu.vested_price).toLocaleString()}
+              ${Math.round(rsu.vested_shares * rsu.vested_price).toLocaleString()}
             </div>
           </FormField>
           <FormField label="Sale Year">
-            <Input type="number" value={income.rsu.vested_sale_year ?? ""} onChange={(e) => onChange("rsu", "vested_sale_year", e.target.value ? parseInt(e.target.value) : 0)} />
+            <Input type="number" value={rsu.vested_sale_year ?? ""} onChange={(e) => onChange(rsuKey, "vested_sale_year", e.target.value ? parseInt(e.target.value) : 0)} />
           </FormField>
         </div>
       </div>
@@ -96,11 +76,11 @@ function IncomeSection({
           <h5 className="text-xs font-medium text-slate-500">Unvested Tranches</h5>
           <button onClick={onAddTranche} className="px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700">+ Add Tranche</button>
         </div>
-        {income.rsu.unvested_tranches.length === 0 ? (
+        {rsu.unvested_tranches.length === 0 ? (
           <div className="text-xs text-slate-400 text-center py-2">No unvested tranches</div>
         ) : (
           <div className="flex flex-col gap-2">
-            {income.rsu.unvested_tranches.map((t, i) => (
+            {rsu.unvested_tranches.map((t, i) => (
               <div key={i} className="grid grid-cols-4 gap-2 items-end">
                 <FormField label={i === 0 ? "Shares" : ""}>
                   <Input type="number" value={t.shares} onChange={(e) => onUpdateTranche(i, "shares", parseFloat(e.target.value) || 0)} />
@@ -118,30 +98,155 @@ function IncomeSection({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4">
         <FormField label="Annual Refresh Grant $">
-          <Input type="number" value={income.rsu.annual_refresh_value} onChange={(e) => onChange("rsu", "annual_refresh_value", parseFloat(e.target.value) || 0)} />
+          <Input type="number" value={rsu.annual_refresh_value} onChange={(e) => onChange(rsuKey, "annual_refresh_value", parseFloat(e.target.value) || 0)} />
         </FormField>
         <FormField label="Last Grant Year">
-          <Input type="number" value={income.rsu.refresh_end_year ?? ""} onChange={(e) => onChange("rsu", "refresh_end_year", e.target.value ? parseInt(e.target.value) : 0)} />
+          <Input type="number" value={rsu.refresh_end_year ?? ""} onChange={(e) => onChange(rsuKey, "refresh_end_year", e.target.value ? parseInt(e.target.value) : 0)} />
         </FormField>
         <FormField label="Refresh Sale Year">
-          <Input type="number" value={income.rsu.refresh_sale_year ?? ""} onChange={(e) => onChange("rsu", "refresh_sale_year", e.target.value ? parseInt(e.target.value) : 0)} />
+          <Input type="number" value={rsu.refresh_sale_year ?? ""} onChange={(e) => onChange(rsuKey, "refresh_sale_year", e.target.value ? parseInt(e.target.value) : 0)} />
+        </FormField>
+      </div>
+    </>
+  );
+}
+
+// ─── Person Income Sub-section ────────────────────────────────────
+
+function PersonIncomeSection({
+  title,
+  incomeSection,
+  incomeKey,
+  rsu,
+  rsuKey,
+  hasRsu,
+  onToggleRsu,
+  onChange,
+  onAddTranche,
+  onUpdateTranche,
+  onRemoveTranche,
+}: {
+  title: string;
+  incomeSection: { base_salary: number; annual_raise_pct: number; bonus_pct: number; bonus_variability_pct?: number };
+  incomeKey: string;
+  rsu: RSUHolding | null;
+  rsuKey: string;
+  hasRsu: boolean;
+  onToggleRsu: () => void;
+  onChange: (section: string, field: string, value: number) => void;
+  onAddTranche: () => void;
+  onUpdateTranche: (index: number, field: string, value: number) => void;
+  onRemoveTranche: (index: number) => void;
+}) {
+  return (
+    <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 mb-4">
+      <h4 className="text-sm font-medium text-slate-600 mb-3">{title}</h4>
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <FormField label="Base Salary">
+          <Input type="number" value={incomeSection.base_salary} onChange={(e) => onChange(incomeKey, "base_salary", parseFloat(e.target.value) || 0)} />
+        </FormField>
+        <FormField label="Annual Raise %">
+          <Input type="number" step="0.1" value={incomeSection.annual_raise_pct} onChange={(e) => onChange(incomeKey, "annual_raise_pct", parseFloat(e.target.value) || 0)} />
+        </FormField>
+        <FormField label="Bonus %">
+          <Input type="number" step="0.1" value={incomeSection.bonus_pct} onChange={(e) => onChange(incomeKey, "bonus_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
       </div>
 
-      {income.spouse && (
-        <>
-          <h4 className="text-sm font-medium text-slate-500 mb-3">Spouse Income</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Base Salary">
-              <Input type="number" value={income.spouse.base_salary} onChange={(e) => onChange("spouse", "base_salary", parseFloat(e.target.value) || 0)} />
-            </FormField>
-            <FormField label="Annual Raise %">
-              <Input type="number" step="0.1" value={income.spouse.annual_raise_pct} onChange={(e) => onChange("spouse", "annual_raise_pct", parseFloat(e.target.value) || 0)} />
-            </FormField>
-          </div>
-        </>
+      {/* RSU toggle */}
+      <div className="border-t border-slate-200 pt-3">
+        <label className="flex items-center gap-2 text-sm text-slate-600 mb-3">
+          <input
+            type="checkbox"
+            checked={hasRsu}
+            onChange={onToggleRsu}
+            className="rounded border-slate-300"
+          />
+          RSU / Equity Compensation
+        </label>
+        {hasRsu && rsu && (
+          <RSUSection
+            rsu={rsu}
+            rsuKey={rsuKey}
+            onChange={onChange}
+            onAddTranche={onAddTranche}
+            onUpdateTranche={onUpdateTranche}
+            onRemoveTranche={onRemoveTranche}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Income Section ───────────────────────────────────────────────
+
+function IncomeSection({
+  income,
+  primaryName,
+  spouseName,
+  hasSpouse,
+  onChange,
+  onToggleRsu,
+  onAddTranche,
+  onUpdateTranche,
+  onRemoveTranche,
+}: {
+  income: Profile["income"];
+  primaryName: string;
+  spouseName: string;
+  hasSpouse: boolean;
+  onChange: (section: string, field: string, value: number) => void;
+  onToggleRsu: (who: "primary" | "spouse") => void;
+  onAddTranche: (rsuKey: string) => void;
+  onUpdateTranche: (rsuKey: string, index: number, field: string, value: number) => void;
+  onRemoveTranche: (rsuKey: string, index: number) => void;
+}) {
+  const hasPrimaryRsu = income.rsu.current_price > 0 || income.rsu.vested_shares > 0 || income.rsu.unvested_tranches.length > 0 || income.rsu.annual_refresh_value > 0;
+  const hasSpouseRsu = income.spouse_rsu != null;
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold mb-4">Income</h3>
+      <SectionHelp
+        summary="Income grows with annual raises until retirement, then stops. Bonus is a percentage of base salary."
+        details={[
+          "Salary each year = base_salary x (1 + raise%)^years. Bonus = salary x bonus%.",
+          "Total comp (salary + bonus) is the basis for 401k contribution rate calculations.",
+          "All income stops at retirement age. Social Security and rental income take over.",
+        ]}
+      />
+
+      <PersonIncomeSection
+        title={primaryName}
+        incomeSection={income.primary}
+        incomeKey="primary"
+        rsu={income.rsu}
+        rsuKey="rsu"
+        hasRsu={hasPrimaryRsu}
+        onToggleRsu={() => onToggleRsu("primary")}
+        onChange={onChange}
+        onAddTranche={() => onAddTranche("rsu")}
+        onUpdateTranche={(i, f, v) => onUpdateTranche("rsu", i, f, v)}
+        onRemoveTranche={(i) => onRemoveTranche("rsu", i)}
+      />
+
+      {hasSpouse && income.spouse && (
+        <PersonIncomeSection
+          title={spouseName}
+          incomeSection={income.spouse}
+          incomeKey="spouse"
+          rsu={income.spouse_rsu}
+          rsuKey="spouse_rsu"
+          hasRsu={hasSpouseRsu}
+          onToggleRsu={() => onToggleRsu("spouse")}
+          onChange={onChange}
+          onAddTranche={() => onAddTranche("spouse_rsu")}
+          onUpdateTranche={(i, f, v) => onUpdateTranche("spouse_rsu", i, f, v)}
+          onRemoveTranche={(i) => onRemoveTranche("spouse_rsu", i)}
+        />
       )}
     </div>
   );
@@ -236,11 +341,15 @@ function SavingsSection({
   savings,
   income,
   hasSpouse,
+  primaryName,
+  spouseName,
   onChange,
 }: {
   savings: Profile["savings"];
   income: Profile["income"];
   hasSpouse: boolean;
+  primaryName: string;
+  spouseName: string;
   onChange: (person: "primary" | "spouse" | "top", field: string, value: number | boolean) => void;
 }) {
   return (
@@ -256,9 +365,9 @@ function SavingsSection({
         ]}
       />
       <div className="flex flex-col gap-4">
-        <PersonSavingsSection title="Primary" savings={savings.primary} salary={income.primary.base_salary} bonusPct={income.primary.bonus_pct} onChange={(field, value) => onChange("primary", field, value)} />
+        <PersonSavingsSection title={primaryName} savings={savings.primary} salary={income.primary.base_salary} bonusPct={income.primary.bonus_pct} onChange={(field, value) => onChange("primary", field, value)} />
         {hasSpouse && (
-          <PersonSavingsSection title="Spouse" savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} bonusPct={0} onChange={(field, value) => onChange("spouse", field, value)} />
+          <PersonSavingsSection title={spouseName} savings={savings.spouse} salary={income.spouse?.base_salary ?? 0} bonusPct={income.spouse?.bonus_pct ?? 0} onChange={(field, value) => onChange("spouse", field, value)} />
         )}
       </div>
     </div>
@@ -291,7 +400,7 @@ function ExpensesSection({
       <SectionHelp
         summary="Base living expenses plus per-child costs. Per-child cost is ADDED ON TOP of base expenses — it's not included in the base number."
         details={[
-          "Base expenses: your household spending (food, utilities, transport, insurance, travel, subscriptions). Excludes mortgage, tuition, and healthcare — those are modeled separately.",
+          "Base expenses: your household spending (food, utilities, transport, insurance, travel, subscriptions). Includes utilities since those follow the household, not the property. Excludes mortgage, property tax, tuition, and healthcare — those are modeled separately.",
           "Per-child cost: an additional amount per child, added to base expenses. With 2 kids at $15K each, total = base + $30K. Drops off when each child finishes college.",
           "At retirement, total living expenses are reduced by the retirement reduction % — a one-time step-down.",
           "In retirement, expenses exceeding Social Security + other income are covered by portfolio withdrawals.",
@@ -375,13 +484,14 @@ export function BasicFinancesPage() {
     if (profile) setLocal(profile);
   }, [profile]);
 
+  const save = () => {
+    if (local) updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
+  };
+  const { status: saveStatus } = useAutoSave(save, dirty, updateProfile.isPending);
+
   if (isLoading) return <div className="text-slate-400">Loading...</div>;
   if (error) return <div className="text-red-500">Error loading profile</div>;
   if (!local) return null;
-
-  const save = () => {
-    updateProfile.mutate(local, { onSuccess: () => setDirty(false) });
-  };
 
   const updateIncome = (section: string, field: string, value: number) => {
     setLocal((prev) => {
@@ -422,46 +532,76 @@ export function BasicFinancesPage() {
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold">Income & Savings</h2>
-        <button
-          onClick={save}
-          disabled={!dirty || updateProfile.isPending}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${dirty ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}
-        >
-          {updateProfile.isPending ? "Saving..." : "Save Changes"}
-        </button>
+        {saveStatus && <span className="text-xs text-slate-400">{saveStatus}</span>}
       </div>
 
       <div className="flex flex-col gap-6">
         <IncomeSection
           income={local.income}
+          primaryName={local.personal.name || "Primary"}
+          spouseName={local.spouse?.name || "Spouse"}
+          hasSpouse={!!local.spouse}
           onChange={updateIncome}
-          onAddTranche={() => {
+          onToggleRsu={(who) => {
+            setLocal((prev) => {
+              if (!prev) return prev;
+              if (who === "primary") {
+                // Toggle: if RSU has any data, zero it out; otherwise set defaults
+                const hasData = prev.income.rsu.current_price > 0 || prev.income.rsu.vested_shares > 0 || prev.income.rsu.unvested_tranches.length > 0;
+                if (hasData) {
+                  return { ...prev, income: { ...prev.income, rsu: { ...prev.income.rsu, current_price: 0, vested_shares: 0, unvested_tranches: [], annual_refresh_value: 0 } } };
+                }
+                return { ...prev, income: { ...prev.income, rsu: { ...prev.income.rsu, current_price: 1 } } };
+              } else {
+                // Toggle spouse RSU on/off
+                if (prev.income.spouse_rsu) {
+                  return { ...prev, income: { ...prev.income, spouse_rsu: null } };
+                }
+                const defaultRsu: RSUHolding = {
+                  current_price: 1, annual_growth_rate_pct: 10, long_term_growth_rate_pct: null,
+                  growth_transition_years: 3, volatility_pct: 25, vested_shares: 0, vested_price: 0,
+                  vested_cost_basis: 0, vested_sale_year: null, unvested_tranches: [],
+                  sell_to_cover_pct: 40, annual_refresh_value: 0, refresh_end_year: null,
+                  refresh_sale_year: null, total_unvested_shares: 0, current_value: 0,
+                };
+                return { ...prev, income: { ...prev.income, spouse_rsu: defaultRsu } };
+              }
+            });
+            setDirty(true);
+          }}
+          onAddTranche={(rsuKey) => {
             setLocal((prev) => {
               if (!prev) return prev;
               const newTranche: VestingTranche = { shares: 0, vest_year: new Date().getFullYear() + 1, sale_year: null };
-              return { ...prev, income: { ...prev.income, rsu: { ...prev.income.rsu, unvested_tranches: [...(prev.income.rsu.unvested_tranches || []), newTranche] } } };
+              const rsu = prev.income[rsuKey as keyof typeof prev.income] as RSUHolding | null;
+              if (!rsu) return prev;
+              return { ...prev, income: { ...prev.income, [rsuKey]: { ...rsu, unvested_tranches: [...(rsu.unvested_tranches || []), newTranche] } } };
             });
             setDirty(true);
           }}
-          onUpdateTranche={(index, field, value) => {
+          onUpdateTranche={(rsuKey, index, field, value) => {
             setLocal((prev) => {
               if (!prev) return prev;
-              const tranches = [...(prev.income.rsu.unvested_tranches || [])];
+              const rsu = prev.income[rsuKey as keyof typeof prev.income] as RSUHolding | null;
+              if (!rsu) return prev;
+              const tranches = [...(rsu.unvested_tranches || [])];
               tranches[index] = { ...tranches[index], [field]: value };
-              return { ...prev, income: { ...prev.income, rsu: { ...prev.income.rsu, unvested_tranches: tranches } } };
+              return { ...prev, income: { ...prev.income, [rsuKey]: { ...rsu, unvested_tranches: tranches } } };
             });
             setDirty(true);
           }}
-          onRemoveTranche={(index) => {
+          onRemoveTranche={(rsuKey, index) => {
             setLocal((prev) => {
               if (!prev) return prev;
-              const tranches = (prev.income.rsu.unvested_tranches || []).filter((_, i) => i !== index);
-              return { ...prev, income: { ...prev.income, rsu: { ...prev.income.rsu, unvested_tranches: tranches } } };
+              const rsu = prev.income[rsuKey as keyof typeof prev.income] as RSUHolding | null;
+              if (!rsu) return prev;
+              const tranches = (rsu.unvested_tranches || []).filter((_, i) => i !== index);
+              return { ...prev, income: { ...prev.income, [rsuKey]: { ...rsu, unvested_tranches: tranches } } };
             });
             setDirty(true);
           }}
         />
-        <SavingsSection savings={local.savings} income={local.income} hasSpouse={!!local.spouse} onChange={updateSavings} />
+        <SavingsSection savings={local.savings} income={local.income} hasSpouse={!!local.spouse} primaryName={local.personal.name || "Primary"} spouseName={local.spouse?.name || "Spouse"} onChange={updateSavings} />
         <ExpensesSection expenses={local.expenses} onChange={updateExpenses} />
         <TaxSection tax={local.tax} onChange={updateTax} />
       </div>

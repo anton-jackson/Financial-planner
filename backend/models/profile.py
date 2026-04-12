@@ -20,12 +20,20 @@ class CurrentSchool(BaseModel):
     ends_year: int = 0
 
 
+class SchoolStage(BaseModel):
+    name: str = ""
+    annual_tuition: float = 0
+    start_year: int = 0
+    end_year: int = 0
+
+
 class Child(BaseModel):
     name: str
     birth_year: int
     college_start_year: int
     college_years: int = 4
     current_school: CurrentSchool | None = None
+    school_stages: list[SchoolStage] = []
     plan_529_balance: float = 0
     plan_529_monthly_contribution: float = 0
     # Parent's annual college contribution in today's dollars.
@@ -97,12 +105,15 @@ class PrimaryIncome(BaseModel):
 class SpouseIncome(BaseModel):
     base_salary: float = 0
     annual_raise_pct: float = 2.5
+    bonus_pct: float = 0
+    bonus_variability_pct: float = 5.0
 
 
 class Income(BaseModel):
     primary: PrimaryIncome = PrimaryIncome()
     rsu: RSUHolding = RSUHolding()
     spouse: SpouseIncome | None = None
+    spouse_rsu: RSUHolding | None = None
 
 
 class PersonSavings(BaseModel):

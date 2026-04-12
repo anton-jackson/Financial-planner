@@ -13,12 +13,20 @@ export interface CurrentSchool {
   ends_year: number;
 }
 
+export interface SchoolStage {
+  name: string;
+  annual_tuition: number;
+  start_year: number;
+  end_year: number;
+}
+
 export interface Child {
   name: string;
   birth_year: number;
   college_start_year: number;
   college_years: number;
   current_school: CurrentSchool | null;
+  school_stages: SchoolStage[];
   plan_529_balance: number;
   plan_529_monthly_contribution: number;
   parent_college_annual: number;
@@ -59,12 +67,15 @@ export interface PrimaryIncome {
 export interface SpouseIncome {
   base_salary: number;
   annual_raise_pct: number;
+  bonus_pct: number;
+  bonus_variability_pct: number;
 }
 
 export interface Income {
   primary: PrimaryIncome;
   rsu: RSUHolding;
   spouse: SpouseIncome | null;
+  spouse_rsu: RSUHolding | null;
 }
 
 export interface PersonSavings {
