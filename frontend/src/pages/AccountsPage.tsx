@@ -351,7 +351,7 @@ export function AccountsPage() {
   };
 
   useEffect(() => {
-    if (assetsData) setLocalAssets(assetsData);
+    if (assetsData && !dirty) setLocalAssets(assetsData);
   }, [assetsData]);
 
   // Load holdings

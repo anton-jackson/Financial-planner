@@ -13,7 +13,7 @@ export function PropertyPage() {
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (assetsData) setLocalAssets(assetsData);
+    if (assetsData && !dirty) setLocalAssets(assetsData);
   }, [assetsData]);
 
   const save = () => {

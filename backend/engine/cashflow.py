@@ -369,7 +369,8 @@ def _project_year(
                 sale_proceeds = lot["shares"] * projected_price
                 gains = max(0, sale_proceeds - lot["cost_basis"])
                 rsu_cap_gains += gains
-                state["liquid_portfolio"] += sale_proceeds
+                state["taxable"] += sale_proceeds
+                state["taxable_cost_basis"] += sale_proceeds
                 events.append(
                     f"RSU sale: {lot['shares']:.0f} shares @ ${projected_price:,.0f} "
                     f"= ${sale_proceeds:,.0f} (gains: ${gains:,.0f})"
@@ -556,8 +557,8 @@ def _project_year(
                     "annual_insurance": purchase.get("annual_insurance", 0),
                     "appreciation_rate_pct": purchase.get("appreciation_rate_pct"),
                 })
-                # Down payment directly reduces liquid portfolio
-                state["liquid_portfolio"] -= down
+                # Down payment directly reduces taxable portfolio
+                state["taxable"] -= down
                 large_purchase_cost += down
                 events.append(
                     f"Purchase: {purchase['name']} (${purchase['purchase_price']:,.0f}, "
@@ -586,7 +587,8 @@ def _project_year(
                     rate = tax_cfg.get("pre_retirement_effective_pct", 32) if not is_retired else tax_cfg.get("retirement_effective_pct", 25)
                 tax = amount * rate / 100
             net = amount - tax
-            state["liquid_portfolio"] += net
+            state["taxable"] += net
+            state["taxable_cost_basis"] += net
             life_event_income += net
             events.append(f"{evt['name']}: ${amount:,.0f}" + (f" (tax: ${tax:,.0f})" if tax > 0 else ""))
 
@@ -629,7 +631,7 @@ def _project_year(
                     "remaining_months": term_months,
                 })
                 vehicle_cost += down
-                state["liquid_portfolio"] -= down
+                state["taxable"] -= down
                 events.append(
                     f"Vehicle purchase: {v.get('name', 'Car')} "
                     f"(${nominal_price:,.0f}, trade-in ${nominal_trade_in:,.0f}, "
@@ -638,7 +640,7 @@ def _project_year(
             else:
                 # Cash purchase
                 vehicle_cost += net_price
-                state["liquid_portfolio"] -= net_price
+                state["taxable"] -= net_price
                 events.append(
                     f"Vehicle purchase: {v.get('name', 'Car')} "
                     f"(${nominal_price:,.0f}, trade-in ${nominal_trade_in:,.0f}, "

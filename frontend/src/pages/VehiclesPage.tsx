@@ -33,7 +33,7 @@ export function VehiclesPage() {
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
-    if (profile) setLocal(profile);
+    if (profile && !dirty) setLocal(profile);
   }, [profile]);
 
   const save = () => {

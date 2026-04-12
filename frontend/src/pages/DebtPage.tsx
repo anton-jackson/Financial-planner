@@ -35,7 +35,7 @@ export function DebtPage() {
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
 
   useEffect(() => {
-    if (profile) setLocal(profile);
+    if (profile && !dirty) setLocal(profile);
   }, [profile]);
 
   const save = () => {

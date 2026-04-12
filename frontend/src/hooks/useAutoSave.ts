@@ -2,13 +2,14 @@ import { useEffect, useRef, useCallback } from "react";
 
 /**
  * Auto-saves after `delay` ms of inactivity when dirty.
- * Returns a stable `save` callback and a status string ("Saving..." | "Unsaved" | null).
+ * Pages should guard their server→local sync with `!dirty` to prevent
+ * overwrites while the user is still editing.
  */
 export function useAutoSave(
   saveFn: () => void | Promise<void>,
   dirty: boolean,
   saving: boolean,
-  delay = 1500,
+  delay = 3000,
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveFnRef = useRef(saveFn);
