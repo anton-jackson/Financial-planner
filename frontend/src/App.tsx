@@ -6,7 +6,10 @@ import { AppShell } from "./components/layout/AppShell";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { BasicFinancesPage } from "./pages/BasicFinancesPage";
-import { AssetsPage } from "./pages/AssetsPage";
+import { AccountsPage } from "./pages/AccountsPage";
+import { PropertyPage } from "./pages/PropertyPage";
+import { VehiclesPage } from "./pages/VehiclesPage";
+import { DebtPage } from "./pages/DebtPage";
 import { CollegePlanningPage } from "./pages/CollegePlanningPage";
 import { ScenariosPage } from "./pages/ScenariosPage";
 import { RetirementPage } from "./pages/RetirementPage";
@@ -14,7 +17,6 @@ import { SimulationPage } from "./pages/SimulationPage";
 import { HowItWorksPage } from "./pages/HowItWorksPage";
 import { PlanningPage } from "./pages/PlanningPage";
 import { AgentProvider } from "./components/agent/AgentContext";
-import { HoldingsPage } from "./pages/HoldingsPage";
 import { WindfallsPage } from "./pages/WindfallsPage";
 import { OnboardingWizard } from "./pages/OnboardingWizard";
 import { onboardingApi } from "./api/onboarding";
@@ -104,18 +106,22 @@ export default function App() {
                 <BrowserRouter>
                   <Routes>
                     <Route element={<AppShell />}>
-                      <Route path="/" element={<DashboardPage />} />
+                      {/* Data entry */}
                       <Route path="/profile" element={<ProfilePage />} />
-                      <Route path="/finances" element={<BasicFinancesPage />} />
-                      <Route path="/assets" element={<AssetsPage />} />
-                      <Route path="/holdings" element={<HoldingsPage />} />
+                      <Route path="/income" element={<BasicFinancesPage />} />
+                      <Route path="/accounts" element={<AccountsPage />} />
+                      <Route path="/property" element={<PropertyPage />} />
+                      <Route path="/vehicles" element={<VehiclesPage />} />
+                      <Route path="/debt" element={<DebtPage />} />
                       <Route path="/windfalls" element={<WindfallsPage />} />
-                      <Route path="/college" element={<CollegePlanningPage />} />
+                      {/* Analysis */}
+                      <Route path="/" element={<DashboardPage />} />
                       <Route path="/retirement" element={<RetirementPage />} />
                       <Route path="/planning" element={<PlanningPage />} />
                       <Route path="/scenarios" element={<ScenariosPage />} />
                       <Route path="/simulation" element={<SimulationPage />} />
                       <Route path="/how-it-works" element={<HowItWorksPage />} />
+                      <Route path="/college" element={<CollegePlanningPage />} />
                     </Route>
                   </Routes>
                 </BrowserRouter>

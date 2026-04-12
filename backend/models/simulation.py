@@ -16,10 +16,10 @@ class YearRow(BaseModel):
     healthcare_costs: float = 0
     large_purchase_costs: float = 0
     vehicle_costs: float = 0
-    heloc_payments: float = 0
+    debt_payments: float = 0
     vehicle_equity: float = 0
     vehicle_loan_debt: float = 0
-    heloc_debt: float = 0
+    debt_balance: float = 0
     property_carrying_costs: float = 0
     property_taxes: float = 0
     property_insurance: float = 0

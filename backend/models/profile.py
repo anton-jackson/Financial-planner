@@ -201,14 +201,26 @@ class Windfall(BaseModel):
 
 
 class HELOC(BaseModel):
-    """Home equity line of credit."""
+    """Home equity line of credit (legacy — use Debt instead)."""
     name: str = ""
-    balance: float = 0  # current outstanding balance
-    credit_limit: float = 0  # total available (informational)
-    interest_rate_pct: float = 8.5  # variable rate
-    monthly_payment: float = 0  # current monthly payment
-    interest_only: bool = False  # True = interest-only payments
-    payoff_year: int | None = None  # target year to pay off (None = pay minimum)
+    balance: float = 0
+    credit_limit: float = 0
+    interest_rate_pct: float = 8.5
+    monthly_payment: float = 0
+    interest_only: bool = False
+    payoff_year: int | None = None
+
+
+class Debt(BaseModel):
+    """Any non-mortgage debt."""
+    name: str = ""
+    type: str = "other"  # heloc, personal_loc, credit_card, student_loan, medical, other
+    balance: float = 0
+    interest_rate_pct: float = 0
+    monthly_payment: float = 0
+    interest_only: bool = False
+    payoff_year: int | None = None
+    credit_limit: float = 0  # for revolving debt (HELOC, LOC, credit card)
 
 
 class Profile(BaseModel):
@@ -223,4 +235,4 @@ class Profile(BaseModel):
     windfalls: list[Windfall] = []
     existing_vehicles: list[ExistingVehicle] = []
     vehicles: list[VehiclePurchase] = []  # planned future purchases
-    helocs: list[HELOC] = []
+    debts: list[Debt] = []

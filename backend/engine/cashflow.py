@@ -201,10 +201,10 @@ def _init_state(assets: dict, profile: dict) -> dict:
             ev["_has_loan"] = False
         existing_vehicles.append(ev)
 
-    # HELOCs
-    helocs = []
-    for h in profile.get("helocs", []):
-        helocs.append(dict(h))
+    # Debts (HELOCs, credit cards, student loans, etc.)
+    debts = []
+    for d in profile.get("debts", []):
+        debts.append(dict(d))
 
     return {
         "liquid_portfolio": liquid,
@@ -220,7 +220,7 @@ def _init_state(assets: dict, profile: dict) -> dict:
         "vehicles": vehicles,
         "auto_loans": [],  # auto loans from financed vehicle purchases
         "existing_vehicles": existing_vehicles,
-        "helocs": helocs,
+        "debts": debts,
     }
 
 
@@ -688,42 +688,43 @@ def _project_year(
                     # Final payment — clear any residual next year
                     pass
 
-    # --- HELOC payments ---
-    heloc_payments = 0.0
-    remaining_helocs = []
-    for h in state["helocs"]:
-        balance = h.get("balance", 0)
+    # --- Debt payments (HELOCs, credit cards, student loans, etc.) ---
+    debt_payments = 0.0
+    remaining_debts = []
+    for d in state["debts"]:
+        balance = d.get("balance", 0)
         if balance <= 0:
             continue
 
-        rate = h.get("interest_rate_pct", 8.5) / 100
+        rate = d.get("interest_rate_pct", 0) / 100
         annual_interest = balance * rate
-        monthly_pmt = h.get("monthly_payment", 0)
+        monthly_pmt = d.get("monthly_payment", 0)
+        label = d.get("name") or d.get("type", "Debt")
 
         # Check if this is a payoff year
-        payoff_year = h.get("payoff_year")
+        payoff_year = d.get("payoff_year")
         if payoff_year and year >= payoff_year:
             # Pay off remaining balance this year
-            heloc_payments += balance + annual_interest
-            h["balance"] = 0
-            events.append(f"HELOC paid off: {h.get('name', 'HELOC')} (${balance:,.0f})")
+            debt_payments += balance + annual_interest
+            d["balance"] = 0
+            events.append(f"Debt paid off: {label} (${balance:,.0f})")
             continue
 
-        if h.get("interest_only", False):
+        if d.get("interest_only", False):
             # Interest-only: pay just the interest, balance unchanged
-            heloc_payments += annual_interest
+            debt_payments += annual_interest
         else:
             # Amortizing: apply monthly payments
             annual_pmt = monthly_pmt * 12
             principal_paid = max(0, annual_pmt - annual_interest)
-            h["balance"] = max(0, balance - principal_paid)
-            heloc_payments += annual_pmt
+            d["balance"] = max(0, balance - principal_paid)
+            debt_payments += annual_pmt
 
-        if h["balance"] > 0:
-            remaining_helocs.append(h)
+        if d["balance"] > 0:
+            remaining_debts.append(d)
         else:
-            events.append(f"HELOC paid off: {h.get('name', 'HELOC')}")
-    state["helocs"] = remaining_helocs
+            events.append(f"Debt paid off: {label}")
+    state["debts"] = remaining_debts
 
     # --- Living expenses (excludes mortgage, tuition, healthcare — modeled above) ---
     expenses_cfg = profile.get("expenses", {})
@@ -748,7 +749,7 @@ def _project_year(
     total_expenses = (
         college_cost + mortgage_payments + healthcare_cost +
         large_purchase_cost + vehicle_cost + auto_loan_payments +
-        existing_vehicle_loan_payments + heloc_payments +
+        existing_vehicle_loan_payments + debt_payments +
         living_expenses + property_carrying_costs +
         property_taxes + property_insurance
     )
@@ -1051,14 +1052,14 @@ def _project_year(
     for loan in state["auto_loans"]:
         vehicle_loan_debt += loan.get("balance", 0)
 
-    # --- HELOC debt ---
-    heloc_debt = sum(h.get("balance", 0) for h in state["helocs"])
+    # --- Outstanding debt ---
+    debt_balance = sum(d.get("balance", 0) for d in state["debts"])
 
     # --- Net worth ---
     # rsu_held_value = market value of vested (unsold) RSU shares; unvested are excluded
     net_worth = (
         state["liquid_portfolio"] + re_equity + rsu_held_value
-        + vehicle_equity - vehicle_loan_debt - heloc_debt
+        + vehicle_equity - vehicle_loan_debt - debt_balance
     )
     # Add 529 balances
     for child in state["children"]:
@@ -1079,10 +1080,10 @@ def _project_year(
         "healthcare_costs": round(healthcare_cost, 2),
         "large_purchase_costs": round(large_purchase_cost, 2),
         "vehicle_costs": round(vehicle_cost + auto_loan_payments + existing_vehicle_loan_payments, 2),
-        "heloc_payments": round(heloc_payments, 2),
+        "debt_payments": round(debt_payments, 2),
         "vehicle_equity": round(vehicle_equity, 2),
         "vehicle_loan_debt": round(vehicle_loan_debt, 2),
-        "heloc_debt": round(heloc_debt, 2),
+        "debt_balance": round(debt_balance, 2),
         "property_carrying_costs": round(property_carrying_costs, 2),
         "property_taxes": round(property_taxes, 2),
         "property_insurance": round(property_insurance, 2),

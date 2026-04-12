@@ -135,14 +135,15 @@ export interface Windfall {
   notes: string;
 }
 
-export interface HELOC {
+export interface Debt {
   name: string;
+  type: string; // heloc, personal_loc, credit_card, student_loan, medical, other
   balance: number;
-  credit_limit: number;
   interest_rate_pct: number;
   monthly_payment: number;
   interest_only: boolean;
   payoff_year: number | null;
+  credit_limit: number;
 }
 
 export interface Profile {
@@ -157,5 +158,5 @@ export interface Profile {
   windfalls: Windfall[];
   existing_vehicles: ExistingVehicle[];
   vehicles: VehiclePurchase[];
-  helocs: HELOC[];
+  debts: Debt[];
 }

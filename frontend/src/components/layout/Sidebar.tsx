@@ -2,7 +2,6 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   User,
-  GraduationCap,
   PiggyBank,
   Layers,
   Play,
@@ -11,21 +10,27 @@ import {
   Target,
   DollarSign,
   MessageCircle,
-  BarChart3,
   Gift,
+  Home,
+  Car,
+  CreditCard,
 } from "lucide-react";
 import { useAgent } from "../agent/AgentContext";
 
-const links = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+const DATA_LINKS = [
   { to: "/profile", label: "Profile", icon: User },
-  { to: "/finances", label: "Basic Finances", icon: DollarSign },
-  { to: "/assets", label: "Assets & Liabilities", icon: Wallet },
-  { to: "/holdings", label: "Portfolio Holdings", icon: BarChart3 },
+  { to: "/income", label: "Income & Savings", icon: DollarSign },
+  { to: "/accounts", label: "Investment Accounts", icon: Wallet },
+  { to: "/property", label: "Property", icon: Home },
+  { to: "/vehicles", label: "Vehicles", icon: Car },
+  { to: "/debt", label: "Debt", icon: CreditCard },
   { to: "/windfalls", label: "Windfalls", icon: Gift },
-  { to: "/college", label: "College Planning", icon: GraduationCap },
-  { to: "/planning", label: "Planning", icon: Target },
+];
+
+const ANALYSIS_LINKS = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/retirement", label: "Retirement", icon: PiggyBank },
+  { to: "/planning", label: "Planning", icon: Target },
   { to: "/scenarios", label: "Scenarios", icon: Layers },
   { to: "/simulation", label: "Run Simulation", icon: Play },
   { to: "/how-it-works", label: "How It Works", icon: HelpCircle },
@@ -40,7 +45,25 @@ export function Sidebar() {
         <h1 className="text-lg font-semibold text-white">Finance Planner</h1>
       </div>
       <nav className="flex-1 p-2">
-        {links.map(({ to, label, icon: Icon }) => (
+        <p className="text-xs text-slate-500 px-3 pt-4 pb-1">YOUR DATA</p>
+        {DATA_LINKS.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                isActive
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+              }`
+            }
+          >
+            <Icon size={18} />
+            {label}
+          </NavLink>
+        ))}
+        <p className="text-xs text-slate-500 px-3 pt-4 pb-1">ANALYSIS</p>
+        {ANALYSIS_LINKS.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

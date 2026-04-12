@@ -42,7 +42,7 @@ function getBreakdown(row: YearRow): AssetBreakdown[] {
 function SnapshotCard({ title, row }: { title: string; row: YearRow }) {
   const breakdown = getBreakdown(row);
   const total = breakdown.reduce((s, b) => s + b.value, 0);
-  const debt = row.vehicle_loan_debt + row.heloc_debt;
+  const debt = row.vehicle_loan_debt + row.debt_balance;
 
   // Group by tax character
   const taxDeferred = row.traditional_balance;

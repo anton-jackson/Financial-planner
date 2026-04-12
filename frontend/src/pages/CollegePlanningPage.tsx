@@ -132,7 +132,7 @@ export function CollegePlanningPage() {
           "529 balances grow at 6%/yr with monthly contributions until college starts, then are drawn down to offset college costs.",
           "Parent College $/yr: cap on what parents pay (today's dollars, inflation-adjusted). 529 draws down first, then parent pays up to the cap. Set to 0 to pay full cost after 529.",
           "Private school tuition runs until the school's end year, inflated at general inflation. This cost is separate from college costs.",
-          "Per-child living expenses (from Basic Finances) are added on top of base expenses and drop off after college ends.",
+          "Per-child living expenses (from Income & Savings) are added on top of base expenses and drop off after college ends.",
         ]}
       />
 

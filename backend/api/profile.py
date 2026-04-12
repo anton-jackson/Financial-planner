@@ -8,10 +8,21 @@ router = APIRouter()
 PROFILE_PATH = "profile.yaml"
 
 
+def _migrate_profile(data: dict) -> dict:
+    """Convert legacy helocs list to generalized debts list."""
+    if "helocs" in data and "debts" not in data:
+        data["debts"] = [
+            {**h, "type": "heloc"} for h in data["helocs"]
+        ]
+        del data["helocs"]
+    return data
+
+
 @router.get("", response_model=Profile)
 def get_profile(storage: LocalFileStorage = Depends(get_storage)):
     try:
         data = storage.read(PROFILE_PATH)
+        data = _migrate_profile(data)
         return Profile(**data)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -31,6 +42,7 @@ def patch_profile(updates: dict, storage: LocalFileStorage = Depends(get_storage
         raise HTTPException(status_code=404, detail="Profile not found")
 
     _deep_merge(data, updates)
+    data = _migrate_profile(data)
     profile = Profile(**data)
     storage.write(PROFILE_PATH, profile.model_dump())
     return profile

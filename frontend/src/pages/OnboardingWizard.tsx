@@ -830,7 +830,7 @@ function buildProfile(d: WizardState) {
     windfalls: [],
     existing_vehicles: [],
     vehicles: [],
-    helocs: [],
+    debts: [],
   };
   return profile;
 }

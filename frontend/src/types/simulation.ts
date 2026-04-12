@@ -13,10 +13,10 @@ export interface YearRow {
   healthcare_costs: number;
   large_purchase_costs: number;
   vehicle_costs: number;
-  heloc_payments: number;
+  debt_payments: number;
   vehicle_equity: number;
   vehicle_loan_debt: number;
-  heloc_debt: number;
+  debt_balance: number;
   property_carrying_costs: number;
   property_taxes: number;
   property_insurance: number;
