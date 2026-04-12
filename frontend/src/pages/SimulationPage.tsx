@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useScenarioList } from "../hooks/useScenarios";
 import { simulationApi } from "../api/simulation";
 import type { DeterministicResult, MonteCarloResult } from "../types/simulation";
@@ -309,8 +310,10 @@ function YearlyTable({ result }: { result: DeterministicResult }) {
 }
 
 export function SimulationPage() {
+  const [searchParams] = useSearchParams();
+  const scenarioParam = searchParams.get("scenario");
   const { data: scenarioNames } = useScenarioList();
-  const [selected, setSelected] = useState<string[]>(["base"]);
+  const [selected, setSelected] = useState<string[]>(scenarioParam ? [scenarioParam] : ["base"]);
   const [results, setResults] = useState<DeterministicResult[]>([]);
   const [mcResult, setMcResult] = useState<MonteCarloResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -365,7 +368,7 @@ export function SimulationPage() {
 
   return (
     <div className="max-w-6xl">
-      <h2 className="text-2xl font-bold mb-6">Run Simulation</h2>
+      <h2 className="text-2xl font-bold mb-6">Run Scenario Simulations</h2>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
         <h3 className="text-sm font-medium text-slate-500 mb-3">
@@ -386,21 +389,28 @@ export function SimulationPage() {
             </button>
           ))}
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={runDeterministic}
-            disabled={loading || selected.length === 0}
-            className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
-          >
-            {loading ? "Running..." : "Run Deterministic"}
-          </button>
-          <button
-            onClick={runMonteCarlo}
-            disabled={mcLoading || selected.length === 0}
-            className="px-6 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
-          >
-            {mcLoading ? "Running 5k trials..." : "Run Monte Carlo"}
-          </button>
+        <h3 className="text-sm font-medium text-slate-500 mb-2">Run mode</h3>
+        <div className="flex gap-4">
+          <div>
+            <button
+              onClick={runDeterministic}
+              disabled={loading || selected.length === 0}
+              className="px-6 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+            >
+              {loading ? "Running..." : "Deterministic (mean returns)"}
+            </button>
+            <p className="text-xs text-slate-400 mt-1">Single projection using average returns each year</p>
+          </div>
+          <div>
+            <button
+              onClick={runMonteCarlo}
+              disabled={mcLoading || selected.length === 0}
+              className="px-6 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+            >
+              {mcLoading ? "Running 5k trials..." : "Monte Carlo (5,000 trials)"}
+            </button>
+            <p className="text-xs text-slate-400 mt-1">Probability distribution across randomized trials</p>
+          </div>
         </div>
       </div>
 

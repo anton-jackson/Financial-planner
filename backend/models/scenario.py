@@ -86,6 +86,21 @@ class LifeEvent(BaseModel):
     tax_rate_override: float | None = None  # custom rate (e.g. estate tax), None = use profile rate
 
 
+class CollegeParentOverride(BaseModel):
+    """Override parent's annual college contribution for a specific child."""
+    child_name: str
+    parent_college_annual: float
+
+
+class PropertyOverride(BaseModel):
+    """Override parameters on an existing property from assets."""
+    name: str  # must match asset name
+    appreciation_rate_pct: float | None = None
+    annual_property_tax: float | None = None
+    annual_carrying_cost: float | None = None
+    annual_insurance: float | None = None
+
+
 class Assumptions(BaseModel):
     investment_returns: InvestmentReturns = InvestmentReturns()
     inflation: Inflation = Inflation()
@@ -96,10 +111,16 @@ class Assumptions(BaseModel):
     large_purchases: list[LargePurchase] = []
     life_events: list[LifeEvent] = []
     return_profiles: dict[str, ReturnProfile] = {}
+    # Profile overrides — optional, fall through to profile values when absent
+    retirement_age_primary: int | None = None
+    retirement_age_spouse: int | None = None
+    college_parent_overrides: list[CollegeParentOverride] = []
+    property_overrides: list[PropertyOverride] = []
 
 
 class Scenario(BaseModel):
     schema_version: int = 1
     name: str
     description: str = ""
+    readonly: bool = False
     assumptions: Assumptions = Assumptions()

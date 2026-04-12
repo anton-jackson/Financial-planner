@@ -352,8 +352,11 @@ The tax engine models:
 - **State income tax** — no-tax states (WA, TX, FL, etc.), flat-rate states (IA, IL, PA, etc.), progressive states (CA, NY, NJ, MN, OR, HI) with full bracket tables
 - **Child Tax Credit** — $2,000/child under 17, phaseout above $400K MFJ / $200K single
 - **Standard deduction** — per filing status, inflation-adjusted
+- **Required Minimum Distributions** — SECURE 2.0 rules (start age 73), IRS Uniform Lifetime Table, per-owner from traditional sub-pools
 
-Not modeled (intentionally simplified): AMT, itemized deduction phaseouts, Roth conversion ladders, required minimum distributions.
+Not modeled (intentionally simplified): AMT, itemized deduction phaseouts, Roth conversion ladders, tax-loss harvesting.
+
+For the full flow — pool model, withdrawal sequencing, RSU handling, and the per-year `cash_flow` waterfall — see [docs/engine-architecture.md](docs/engine-architecture.md).
 
 ## Tech Stack
 

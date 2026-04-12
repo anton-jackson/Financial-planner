@@ -80,6 +80,19 @@ export interface LifeEvent {
   tax_rate_override: number | null;
 }
 
+export interface CollegeParentOverride {
+  child_name: string;
+  parent_college_annual: number;
+}
+
+export interface PropertyOverride {
+  name: string;
+  appreciation_rate_pct?: number | null;
+  annual_property_tax?: number | null;
+  annual_carrying_cost?: number | null;
+  annual_insurance?: number | null;
+}
+
 export interface Assumptions {
   investment_returns: InvestmentReturns;
   inflation: Inflation;
@@ -90,16 +103,22 @@ export interface Assumptions {
   large_purchases: LargePurchase[];
   life_events: LifeEvent[];
   return_profiles: Record<string, ReturnProfile>;
+  retirement_age_primary?: number | null;
+  retirement_age_spouse?: number | null;
+  college_parent_overrides?: CollegeParentOverride[];
+  property_overrides?: PropertyOverride[];
 }
 
 export interface Scenario {
   schema_version: number;
   name: string;
   description: string;
+  readonly?: boolean;
   assumptions: Assumptions;
 }
 
 export interface ScenarioListItem {
   slug: string;
   name: string;
+  readonly?: boolean;
 }

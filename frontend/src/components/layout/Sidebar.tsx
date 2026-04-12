@@ -36,8 +36,8 @@ const DATA_LINKS = [
 const ANALYSIS_LINKS = [
   { to: "/retirement", label: "Retirement", icon: PiggyBank },
   { to: "/planning", label: "Planning", icon: Target },
-  { to: "/scenarios", label: "Scenarios", icon: Layers },
-  { to: "/simulation", label: "Run Simulation", icon: Play },
+  { to: "/scenarios", label: "Scenario Editor", icon: Layers },
+  { to: "/simulation", label: "Run Scenario Simulations", icon: Play },
   { to: "/how-it-works", label: "How It Works", icon: HelpCircle },
 ];
 

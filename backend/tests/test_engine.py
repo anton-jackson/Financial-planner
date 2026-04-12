@@ -9,6 +9,7 @@ from engine.mortgage import monthly_payment, amortize_year, new_mortgage_from_pu
 from engine.social_security import benefit_at_claiming_age, compute_social_security
 from engine.healthcare import compute_healthcare_costs
 from engine.college import compute_college_costs
+from engine.rmd import compute_rmd, life_expectancy_factor, RMD_START_AGE
 
 
 class TestInflation:
@@ -245,3 +246,35 @@ class TestCollege:
         # 529 should cover all costs since balance is large
         assert cost == 0  # net cost after 529
         assert drawdown > 0
+
+
+class TestRMD:
+    def test_no_rmd_before_73(self):
+        assert compute_rmd(1_000_000, 72) == 0.0
+        assert compute_rmd(1_000_000, 60) == 0.0
+
+    def test_rmd_at_73(self):
+        # Age 73 factor = 26.5 per IRS Uniform Lifetime Table
+        assert compute_rmd(1_000_000, 73) == pytest.approx(1_000_000 / 26.5)
+
+    def test_rmd_at_85(self):
+        # Age 85 factor = 16.0
+        assert compute_rmd(800_000, 85) == pytest.approx(800_000 / 16.0)
+
+    def test_rmd_zero_balance(self):
+        assert compute_rmd(0, 80) == 0.0
+
+    def test_rmd_caps_at_oldest_table_age(self):
+        # Above tabulated max, uses the oldest published factor (age 120 = 2.0)
+        assert compute_rmd(100_000, 130) == pytest.approx(100_000 / 2.0)
+
+    def test_start_age_constant(self):
+        assert RMD_START_AGE == 73
+
+    def test_factor_monotonically_decreases(self):
+        # Life-expectancy factors strictly decrease with age
+        prev = life_expectancy_factor(73)
+        for age in range(74, 120):
+            f = life_expectancy_factor(age)
+            assert f <= prev
+            prev = f

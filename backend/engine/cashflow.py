@@ -18,6 +18,7 @@ from engine.mortgage import (
 from engine.college import compute_college_costs, grow_529_balances
 from engine.social_security import compute_social_security
 from engine.healthcare import compute_healthcare_costs
+from engine.rmd import compute_rmd
 from engine.tax import compute_year_taxes, standard_deduction, federal_income_tax
 
 
@@ -46,8 +47,12 @@ def project_cashflows(
 
     base_year = start_year or 2026
     birth_year = personal["birth_year"]
-    # Support both retirement_age (new) and retirement_target_year (legacy)
-    if "retirement_age" in personal:
+    # Support both retirement_age (new) and retirement_target_year (legacy).
+    # Scenario-level overrides take precedence when set.
+    ret_override = assumptions.get("retirement_age_primary")
+    if ret_override is not None:
+        retirement_year = birth_year + ret_override
+    elif "retirement_age" in personal:
         retirement_year = birth_year + personal["retirement_age"]
     else:
         retirement_year = personal["retirement_target_year"]
@@ -55,7 +60,10 @@ def project_cashflows(
     # Spouse retirement year (independent of primary)
     spouse = profile.get("spouse")
     if spouse:
-        if "retirement_age" in spouse:
+        spouse_ret_override = assumptions.get("retirement_age_spouse")
+        if spouse_ret_override is not None:
+            spouse_retirement_year = spouse["birth_year"] + spouse_ret_override
+        elif "retirement_age" in spouse:
             spouse_retirement_year = spouse["birth_year"] + spouse["retirement_age"]
         else:
             spouse_retirement_year = spouse.get("retirement_target_year", retirement_year)
@@ -69,8 +77,8 @@ def project_cashflows(
     if not start_year:
         start_year = base_year
 
-    # Initialize mutable state
-    state = _init_state(assets, profile)
+    # Initialize mutable state (pass assumptions for scenario-level overrides)
+    state = _init_state(assets, profile, assumptions)
 
     results = []
     for year in range(start_year, end_year + 1):
@@ -93,27 +101,48 @@ def project_cashflows(
     return results
 
 
-def _init_state(assets: dict, profile: dict) -> dict:
-    """Initialize mutable simulation state from assets and profile."""
-    # Split liquid assets into three tax-aware pools
-    traditional = 0.0  # tax-deferred: traditional 401k, traditional IRA
-    roth = 0.0  # tax-free: roth 401k, roth IRA, HSA
-    taxable = 0.0  # after-tax: brokerage, crypto
+def _init_state(assets: dict, profile: dict, assumptions: dict | None = None) -> dict:
+    """Initialize mutable simulation state from assets and profile.
+
+    Pool architecture (see docs/engine-rework-spec.md):
+      - traditional_primary / traditional_spouse: pre-tax, split by owner
+        so RMDs can be computed per-person.
+      - roth: tax-free, aggregate (no RMDs, no owner split needed).
+      - taxable: after-tax brokerage / crypto, aggregate.
+      - hsa: triple-tax-advantaged, drawn for healthcare.
+    """
+    traditional_primary = 0.0
+    traditional_spouse = 0.0
+    roth = 0.0
+    taxable = 0.0
     taxable_cost_basis = 0.0  # track cost basis for LTCG on taxable withdrawals
+    hsa = 0.0
+
+    # Account types that are inherently pre-tax / tax-deferred and follow RMD rules.
+    TRAD_TYPES = {"traditional_401k", "traditional_ira", "tax_deferred_retirement"}
+    ROTH_TYPES = {"roth_401k", "roth_ira"}
 
     for a in assets.get("assets", []):
         atype = a["type"]
-        bal = a["balance"]
-        if atype in ("traditional_401k", "traditional_ira"):
-            traditional += bal
-        elif atype in ("roth_401k", "roth_ira", "hsa"):
+        bal = a.get("balance", 0) or 0
+        owner = (a.get("owner") or "primary").lower()
+        if atype in TRAD_TYPES:
+            # IRS treats retirement accounts as per-person; "joint" is not legal
+            # for these, but treat it as primary to be safe.
+            if owner == "spouse":
+                traditional_spouse += bal
+            else:
+                traditional_primary += bal
+        elif atype in ROTH_TYPES:
             roth += bal
+        elif atype == "hsa":
+            hsa += bal
         elif atype in ("taxable_brokerage", "crypto"):
             taxable += bal
             taxable_cost_basis += bal  # initial balance = cost basis
         # 529 and real_estate handled separately
 
-    liquid = traditional + roth + taxable
+    liquid = traditional_primary + traditional_spouse + roth + taxable + hsa
 
     # Real estate
     properties = []
@@ -137,6 +166,17 @@ def _init_state(assets: dict, profile: dict) -> dict:
                 "appreciation_rate_pct": props.get("appreciation_rate_pct"),  # None = use scenario default
             })
 
+    # Apply scenario-level property overrides (appreciation, tax, etc.)
+    if assumptions:
+        for override in assumptions.get("property_overrides", []):
+            for prop in properties:
+                if prop["name"] == override["name"]:
+                    for field in ("appreciation_rate_pct", "annual_property_tax",
+                                  "annual_carrying_cost", "annual_insurance"):
+                        val = override.get(field)
+                        if val is not None:
+                            prop[field] = val
+
     # Deep copy children for 529 tracking
     children = []
     for c in profile.get("children", []):
@@ -146,7 +186,19 @@ def _init_state(assets: dict, profile: dict) -> dict:
         child["_529_balance"] = child.get("plan_529_balance", 0)
         children.append(child)
 
-    # RSU state for tracking vesting + sale (individual lots)
+    # Apply scenario-level college parent payment overrides
+    if assumptions:
+        for override in assumptions.get("college_parent_overrides", []):
+            for child in children:
+                if child["name"] == override["child_name"]:
+                    child["parent_college_annual"] = override["parent_college_annual"]
+
+    # ── RSU state (simplified: aggregate held shares + one cost basis) ──
+    # See docs/engine-rework-spec.md RSU section:
+    #   On vest, `sell_to_cover_pct` of shares disappear (sold to cover tax
+    #   withholding — those proceeds go to the IRS, not to the holder). The
+    #   full gross vest value is ordinary income (taxed by the normal tax
+    #   engine). The remaining shares accumulate at vest-day price.
     rsu = profile.get("income", {}).get("rsu", {})
     unvested = []
     for t in rsu.get("unvested_tranches", []):
@@ -156,33 +208,27 @@ def _init_state(assets: dict, profile: dict) -> dict:
             "sale_year": t.get("sale_year"),
         })
 
-    # Already-vested shares become the first vested lot
-    vested_lots = []
-    if rsu.get("vested_shares", 0) > 0:
-        vested_lots.append({
-            "shares": rsu["vested_shares"],
-            "cost_basis": rsu.get("vested_cost_basis", 0),
-            "sale_year": rsu.get("vested_sale_year"),
-        })
-
     initial_rate = rsu.get("annual_growth_rate_pct", 7)
     long_term_rate = rsu.get("long_term_growth_rate_pct")
     transition_years = rsu.get("growth_transition_years", 5)
 
     rsu_state = {
-        "price": rsu.get("current_price", 0),  # mutated each year
+        "price": rsu.get("current_price", 0) or rsu.get("vested_price", 0),
         "initial_growth_pct": initial_rate,
         "long_term_growth_pct": long_term_rate if long_term_rate is not None else initial_rate,
         "transition_years": transition_years,
-        "vested_lots": vested_lots,
+        # Aggregate held position: all vested-but-unsold shares share one cost basis.
+        "held_shares": rsu.get("vested_shares", 0) or 0,
+        "held_cost_basis": rsu.get("vested_cost_basis", 0) or 0,
+        # Optional: if seed shares have a scheduled sale year, track it.
+        "held_sale_year": rsu.get("vested_sale_year"),
         "unvested_tranches": unvested,
         "annual_refresh_value": rsu.get("annual_refresh_value", 0),
         "refresh_end_year": rsu.get("refresh_end_year"),
         "refresh_sale_year": rsu.get("refresh_sale_year"),
-        # Sell-to-cover: company sells this % of shares at vest to cover tax withholding.
-        # You receive (1 - rate) of granted shares. The withheld shares cover the tax,
-        # so vest income should NOT also be taxed through the normal income tax path.
-        "sell_to_cover_pct": rsu.get("sell_to_cover_pct", 0),
+        # % of gross vest withheld for tax (sell-to-cover). Default 37% (top
+        # federal + medicare). Adjustable per user.
+        "sell_to_cover_pct": rsu.get("sell_to_cover_pct", 37),
     }
 
     # Vehicle purchases (planned)
@@ -208,10 +254,17 @@ def _init_state(assets: dict, profile: dict) -> dict:
 
     return {
         "liquid_portfolio": liquid,
-        "traditional": traditional,
+        # Tracked balances (see docs/engine-rework-spec.md)
+        "traditional_primary": traditional_primary,
+        "traditional_spouse": traditional_spouse,
         "roth": roth,
         "taxable": taxable,
         "taxable_cost_basis": taxable_cost_basis,
+        "hsa": hsa,
+        # Snapshots of prior-year ending balances for RMD computation.
+        # Initialized from opening balances so RMDs in the first year work.
+        "prior_traditional_primary": traditional_primary,
+        "prior_traditional_spouse": traditional_spouse,
         "rsu": rsu_state,
         "properties": properties,
         "children": children,
@@ -284,10 +337,21 @@ def _project_year(
             spouse_bonus = spouse_salary * spouse_bonus_pct / 100
             gross_income += spouse_salary + spouse_bonus
 
-    # --- RSU processing (runs pre- and post-retirement for vesting/sales) ---
+    # --- RSU processing (simplified per spec — runs pre- and post-retirement) ---
+    #
+    # Per-year logic:
+    #   1. Update price by this year's growth rate (glide from initial to long-term).
+    #   2. Process vesting tranches that vest this year:
+    #      - sell_to_cover_pct of shares disappear (sold for tax withholding).
+    #      - 100% of gross vest value is ordinary income.
+    #      - Remaining (1 - sell_to_cover) shares added to aggregate held position
+    #        with cost basis = kept_shares × vest-day price.
+    #   3. Add annual refresh grant (as new unvested tranche vesting next year).
+    #   4. Sell held position if held_sale_year has arrived — proceeds → taxable,
+    #      gains above aggregate cost basis are LTCG.
     rsu_st = state["rsu"]
-    if rsu_st["price"] > 0 and (rsu_st["vested_lots"] or rsu_st["unvested_tranches"]):
-        # Apply this year's growth rate (glide from initial to long-term)
+    if rsu_st["price"] > 0 and (rsu_st["held_shares"] > 0 or rsu_st["unvested_tranches"]):
+        # 1. Apply this year's growth rate (glide from initial to long-term).
         if years_from_start > 0:
             t = min(years_from_start, rsu_st["transition_years"])
             trans = rsu_st["transition_years"]
@@ -300,10 +364,9 @@ def _project_year(
             rsu_st["price"] *= (1 + rate_pct / 100)
         projected_price = rsu_st["price"]
 
-        # 1. Process vesting events: unvested tranches that vest this year
-        #    Sell-to-cover: company sells a % of shares to pay tax withholding.
-        #    You receive fewer shares; the withheld amount covers the tax bill.
         sell_to_cover = rsu_st["sell_to_cover_pct"] / 100
+
+        # 2. Process vesting events.
         remaining_tranches = []
         for tranche in rsu_st["unvested_tranches"]:
             if tranche["vest_year"] == year:
@@ -311,29 +374,24 @@ def _project_year(
                 vest_value = gross_shares * projected_price
                 rsu_vest_income += vest_value  # full value is ordinary income
 
-                if sell_to_cover > 0:
-                    withheld_shares = gross_shares * sell_to_cover
-                    kept_shares = gross_shares - withheld_shares
-                    withheld_value = withheld_shares * projected_price
-                    # Withheld shares are sold immediately — proceeds cover the tax.
-                    # The cash from withheld shares goes to the company (not to you),
-                    # so we don't add it to liquid portfolio. But we also mark that
-                    # the tax on this vest income is already paid via sell-to-cover.
-                    rsu_vest_tax_covered += withheld_value
-                else:
-                    kept_shares = gross_shares
-
+                withheld_shares = gross_shares * sell_to_cover
+                kept_shares = gross_shares - withheld_shares
                 kept_value = kept_shares * projected_price
-                rsu_st["vested_lots"].append({
-                    "shares": kept_shares,
-                    "cost_basis": kept_value,  # cost basis = FMV at vest for kept shares
-                    "sale_year": tranche.get("sale_year"),
-                })
+
+                # Aggregate into held position (cost basis = FMV @ vest for kept shares).
+                rsu_st["held_shares"] += kept_shares
+                rsu_st["held_cost_basis"] += kept_value
+                # If this tranche has a scheduled sale year, propagate it to the
+                # aggregate held position (last-writer-wins; most configs use one
+                # global sale year for all tranches).
+                if tranche.get("sale_year") and not rsu_st.get("held_sale_year"):
+                    rsu_st["held_sale_year"] = tranche["sale_year"]
+
                 if sell_to_cover > 0:
                     events.append(
                         f"RSU vest: {gross_shares:.0f} shares @ ${projected_price:,.0f} "
-                        f"= ${vest_value:,.0f} — sold {withheld_shares:.0f} for tax, "
-                        f"kept {kept_shares:.0f} shares"
+                        f"= ${vest_value:,.0f} — {withheld_shares:.0f} sold for tax, "
+                        f"{kept_shares:.0f} kept"
                     )
                 else:
                     events.append(
@@ -344,7 +402,7 @@ def _project_year(
                 remaining_tranches.append(tranche)
         rsu_st["unvested_tranches"] = remaining_tranches
 
-        # 2. Add annual refresh grant (dollar value → shares at current price)
+        # 3. Add annual refresh grant (dollar value → shares at current price).
         refresh_end = rsu_st.get("refresh_end_year")
         refresh_active = not is_retired and (refresh_end is None or year <= refresh_end)
         if refresh_active and rsu_st["annual_refresh_value"] > 0 and projected_price > 0:
@@ -362,25 +420,26 @@ def _project_year(
         # Vest income is taxed as ordinary income
         gross_income += rsu_vest_income
 
-        # 3. Sell any vested lots whose sale_year has arrived
-        remaining_lots = []
-        for lot in rsu_st["vested_lots"]:
-            if lot["sale_year"] and year >= lot["sale_year"]:
-                sale_proceeds = lot["shares"] * projected_price
-                gains = max(0, sale_proceeds - lot["cost_basis"])
-                rsu_cap_gains += gains
-                state["taxable"] += sale_proceeds
-                state["taxable_cost_basis"] += sale_proceeds
-                events.append(
-                    f"RSU sale: {lot['shares']:.0f} shares @ ${projected_price:,.0f} "
-                    f"= ${sale_proceeds:,.0f} (gains: ${gains:,.0f})"
-                )
-            else:
-                remaining_lots.append(lot)
-        rsu_st["vested_lots"] = remaining_lots
+        # 4. Sell aggregate held position if sale year has arrived.
+        sale_year = rsu_st.get("held_sale_year")
+        if sale_year and year >= sale_year and rsu_st["held_shares"] > 0:
+            sale_shares = rsu_st["held_shares"]
+            sale_proceeds = sale_shares * projected_price
+            cost_basis = rsu_st["held_cost_basis"]
+            gains = max(0, sale_proceeds - cost_basis)
+            rsu_cap_gains += gains
+            state["taxable"] += sale_proceeds
+            state["taxable_cost_basis"] += sale_proceeds
+            events.append(
+                f"RSU sale: {sale_shares:.0f} shares @ ${projected_price:,.0f} "
+                f"= ${sale_proceeds:,.0f} (gains: ${gains:,.0f})"
+            )
+            rsu_st["held_shares"] = 0
+            rsu_st["held_cost_basis"] = 0
+            rsu_st["held_sale_year"] = None
 
-        # Track total held RSU value (vested but unsold shares only — unvested are NOT assets)
-        rsu_held_value = sum(lot["shares"] for lot in rsu_st["vested_lots"]) * projected_price
+        # Market value of vested (unsold) held shares — unvested are NOT assets.
+        rsu_held_value = rsu_st["held_shares"] * projected_price
 
     # --- Social Security ---
     ss_income = 0.0
@@ -566,8 +625,11 @@ def _project_year(
                 )
 
     # --- Life events (inheritance, windfalls, etc.) ---
-    # Combine profile-level windfalls (permanent) with scenario life_events
+    # Combine profile-level windfalls (permanent) with scenario life_events.
+    # Per spec: windfalls land in taxable brokerage (future work: let user choose).
     life_event_income = 0.0
+    windfall_gross = 0.0
+    windfall_net = 0.0
     all_life_events = list(assumptions.get("life_events", []))
     for w in profile.get("windfalls", []):
         if w.get("recurring", False):
@@ -590,6 +652,8 @@ def _project_year(
             state["taxable"] += net
             state["taxable_cost_basis"] += net
             life_event_income += net
+            windfall_gross += amount
+            windfall_net += net
             events.append(f"{evt['name']}: ${amount:,.0f}" + (f" (tax: ${tax:,.0f})" if tax > 0 else ""))
 
     # --- Vehicle purchases & auto loan payments ---
@@ -759,11 +823,14 @@ def _project_year(
     )
 
     # --- Savings contributions (pre-retirement only, per person) ---
-    # Route each contribution type to the correct tax-aware pool.
+    # Route each contribution type to the correct tax-aware pool. Traditional
+    # contributions are split by owner into traditional_primary /
+    # traditional_spouse sub-pools so RMDs can be computed per-person.
     savings_contributions = 0.0
-    trad_contributions = 0.0  # reduces taxable income
+    trad_contributions_primary = 0.0  # reduces taxable income
+    trad_contributions_spouse = 0.0   # reduces taxable income
     roth_contributions = 0.0
-    hsa_contributions = 0.0   # reduces taxable income
+    hsa_contributions = 0.0           # reduces taxable income
     taxable_contributions = 0.0
 
     for person_key, person_savings in [("primary", savings_cfg.get("primary", {})),
@@ -806,33 +873,48 @@ def _project_year(
             trad_401k = person_savings.get("annual_401k_traditional", 0)
             roth_401k = person_savings.get("annual_401k_roth", 0)
 
-        trad_contributions += trad_401k
-        roth_contributions += roth_401k
+        # Per-owner traditional routing; Roth aggregates (no RMD, no owner split).
+        person_trad = trad_401k
+        person_trad += person_savings.get("annual_ira_traditional", 0)
+        # Employer match → traditional (always pre-tax, stays with the employee-owner)
+        match = current_salary * person_savings.get("employer_match_pct", 0) / 100
+        employer_flat = current_salary * person_savings.get("employer_contribution_pct", 0) / 100
+        person_trad += match + employer_flat
 
-        # IRA
-        trad_contributions += person_savings.get("annual_ira_traditional", 0)
+        if person_key == "primary":
+            trad_contributions_primary += person_trad
+        else:
+            trad_contributions_spouse += person_trad
+
+        roth_contributions += roth_401k
         roth_contributions += person_savings.get("annual_ira_roth", 0)
 
-        # HSA (pre-tax deduction, grows tax-free)
+        # HSA (pre-tax deduction, grows tax-free) — aggregate pool, per-person tax deduction
         hsa_contributions += person_savings.get("annual_hsa", 0)
 
         # Additional monthly savings → taxable brokerage
         taxable_contributions += person_savings.get("additional_monthly_savings", 0) * 12
 
-        # Employer match → traditional (always pre-tax)
-        match = current_salary * person_savings.get("employer_match_pct", 0) / 100
-        # Flat employer contribution (independent of employee contribution)
-        employer_flat = current_salary * person_savings.get("employer_contribution_pct", 0) / 100
-        trad_contributions += match + employer_flat
-
+    trad_contributions = trad_contributions_primary + trad_contributions_spouse
     savings_contributions = (
         trad_contributions + roth_contributions
         + hsa_contributions + taxable_contributions
     )
 
     # --- Investment returns (per pool) ---
+    #
+    # Returns are computed *before* RMDs/withdrawals for the year — this
+    # matches how RMDs are calculated in practice: RMDs use the prior year's
+    # ending balance, and portfolio growth this year inflates the pool.
     inv_return = 0.0
-    for pool_name in ("traditional", "roth", "taxable"):
+    returns_by_pool: dict[str, float] = {}
+    for pool_name in (
+        "traditional_primary",
+        "traditional_spouse",
+        "roth",
+        "taxable",
+        "hsa",
+    ):
         pool_return = compute_portfolio_return(
             portfolio_value=state[pool_name],
             year=year,
@@ -840,9 +922,32 @@ def _project_year(
             assumptions=assumptions,
         )
         state[pool_name] += pool_return
+        returns_by_pool[pool_name] = pool_return
         inv_return += pool_return
 
-    # --- Taxes (progressive federal brackets) ---
+    # --- RMDs (mandatory, per owner where age >= RMD_START_AGE) ---
+    # Computed against prior-year ending balance per IRS rules. Withdrawn
+    # immediately from the respective traditional sub-pool; the gross amount
+    # is ordinary taxable income. If RMD cash exceeds expense shortfall,
+    # the excess (after tax) goes to the taxable pool.
+    spouse_age = (year - spouse["birth_year"]) if spouse else None
+    rmd_primary_gross = compute_rmd(state["prior_traditional_primary"], age)
+    rmd_primary_gross = min(rmd_primary_gross, state["traditional_primary"])
+    state["traditional_primary"] -= rmd_primary_gross
+
+    rmd_spouse_gross = 0.0
+    if spouse_age is not None:
+        rmd_spouse_gross = compute_rmd(state["prior_traditional_spouse"], spouse_age)
+        rmd_spouse_gross = min(rmd_spouse_gross, state["traditional_spouse"])
+        state["traditional_spouse"] -= rmd_spouse_gross
+    rmd_total = rmd_primary_gross + rmd_spouse_gross
+    if rmd_total > 0:
+        msg = f"RMD: primary ${rmd_primary_gross:,.0f}"
+        if rmd_spouse_gross > 0:
+            msg += f", spouse ${rmd_spouse_gross:,.0f}"
+        events.append(msg)
+
+    # --- Taxes (progressive federal brackets) + withdrawal sequencing ---
     tax_cfg = profile.get("tax", {})
     income_tax = 0.0
     cap_gains_tax = 0.0
@@ -850,13 +955,13 @@ def _project_year(
     effective_tax_rate = 0.0
     marginal_tax_rate = 0.0
 
-    # Withdrawal tracking (retirement only)
+    # Withdrawal tracking
     portfolio_withdrawal = 0.0
     withdrawal_from_taxable = 0.0
-    withdrawal_from_traditional = 0.0
+    withdrawal_from_traditional = 0.0  # voluntary, above RMD
     withdrawal_from_roth = 0.0
-
-    total_income = gross_income + ss_income + rental_income
+    withdrawal_from_hsa = 0.0
+    taxable_gains = 0.0  # LTCG portion of taxable withdrawal
 
     std_ded = standard_deduction(year, gen_inflation, filing_status)
 
@@ -870,9 +975,14 @@ def _project_year(
         if 0 < child_age < 17:
             num_qualifying_children += 1
 
+    # HSA draw for healthcare costs (tax-free). We apply it in both pre- and
+    # post-retirement years — HSA reimbursements are tax-free at any age.
+    if healthcare_cost > 0 and state["hsa"] > 0:
+        withdrawal_from_hsa = min(healthcare_cost, state["hsa"])
+        state["hsa"] -= withdrawal_from_hsa
+
     if not is_retired:
-        # Pre-retirement: progressive brackets on earned income
-        # Traditional 401k + IRA + HSA reduce taxable income
+        # ── Pre-retirement: contribute, then tax, then absorb surplus/deficit ──
         pretax_deductions = trad_contributions + hsa_contributions
 
         tax_result = compute_year_taxes(
@@ -881,6 +991,7 @@ def _project_year(
             standard_deduction_amt=std_ded,
             ltcg_income=rsu_cap_gains,
             rental_income=rental_income,
+            traditional_withdrawal=rmd_total,  # RMD is ordinary income
             rsu_vest_tax_covered=rsu_vest_tax_covered,
             year=year,
             inflation_pct=gen_inflation,
@@ -898,87 +1009,96 @@ def _project_year(
         effective_tax_rate = tax_result["effective_rate_pct"]
         marginal_tax_rate = tax_result["marginal_rate_pct"]
 
-        # cash_tax_owed = total tax minus what sell-to-cover already paid.
-        # This is what actually comes out of your paycheck / cash flow.
         cash_tax = tax_result["cash_tax_owed"]
         total_expenses += cash_tax
 
-        # Route contributions to correct pools
-        state["traditional"] += trad_contributions
-        state["roth"] += roth_contributions + hsa_contributions
+        # Route contributions to per-owner sub-pools.
+        state["traditional_primary"] += trad_contributions_primary
+        state["traditional_spouse"] += trad_contributions_spouse
+        state["roth"] += roth_contributions
+        state["hsa"] += hsa_contributions
         state["taxable"] += taxable_contributions
-        state["taxable_cost_basis"] += taxable_contributions  # cost basis = what you put in
+        state["taxable_cost_basis"] += taxable_contributions
 
-        # Net surplus after tax and all expenses → taxable brokerage
-        net_surplus = total_income - total_expenses
+        # Total cash available this year: earned income + SS + rental + RMD
+        # gross (already withdrawn from trad pools) + HSA medical draw.
+        total_cash_in = (
+            gross_income + ss_income + rental_income
+            + rmd_total + withdrawal_from_hsa
+        )
+        net_surplus = total_cash_in - total_expenses
         if net_surplus > 0:
             state["taxable"] += net_surplus
-            state["taxable_cost_basis"] += net_surplus  # surplus is after-tax cash
+            state["taxable_cost_basis"] += net_surplus
         else:
-            # Expenses exceed income — draw from taxable first
             deficit = -net_surplus
+            # Deficit funded taxable → roth → traditional (pre-retirement this is rare).
             draw = min(deficit, state["taxable"])
+            withdrawal_from_taxable += draw
+            if state["taxable"] > 0:
+                ratio = draw / state["taxable"]
+                state["taxable_cost_basis"] *= (1 - ratio)
             state["taxable"] -= draw
-            state["taxable_cost_basis"] = max(0, state["taxable_cost_basis"] - draw)
             deficit -= draw
-            if deficit > 0:
-                # Then from roth if still short
+            if deficit > 0 and state["roth"] > 0:
                 draw = min(deficit, state["roth"])
+                withdrawal_from_roth += draw
                 state["roth"] -= draw
                 deficit -= draw
             if deficit > 0:
-                # Then from traditional (shouldn't normally happen pre-retirement)
-                draw = min(deficit, state["traditional"])
-                state["traditional"] -= draw
+                # Voluntary traditional draw (split proportionally across sub-pools).
+                trad_total = state["traditional_primary"] + state["traditional_spouse"]
+                draw = min(deficit, trad_total)
+                if trad_total > 0:
+                    f_p = state["traditional_primary"] / trad_total
+                    state["traditional_primary"] -= draw * f_p
+                    state["traditional_spouse"] -= draw * (1 - f_p)
+                    withdrawal_from_traditional += draw
 
     else:
-        # ── Retirement: withdraw from pools in tax-efficient order ──
-        # Order: taxable first (only gains taxed at LTCG), then traditional
-        # (taxed as ordinary income), then Roth (tax-free).
-
-        shortfall = total_expenses - ss_income - rental_income
+        # ── Retirement: RMDs first, then shortfall-driven withdrawals ──
+        # Order (spec): taxable → traditional (voluntary, above RMD) → roth.
+        shortfall = total_expenses - ss_income - rental_income - rmd_total - withdrawal_from_hsa
         if shortfall < 0:
             shortfall = 0
-
         remaining = shortfall
 
-        # Step 1: Withdraw from taxable account
+        # Step 1: Withdraw from taxable (LTCG on gains portion)
         if remaining > 0 and state["taxable"] > 0:
             draw = min(remaining, state["taxable"])
             withdrawal_from_taxable = draw
-            # Compute gains fraction for LTCG
+            gains_frac = 0.0
             if state["taxable"] > 0:
                 gains_frac = max(0, 1 - state["taxable_cost_basis"] / state["taxable"])
-            else:
-                gains_frac = 0
             taxable_gains = draw * gains_frac
-            # Reduce balance and cost basis proportionally
             if state["taxable"] > 0:
                 ratio = draw / state["taxable"]
                 state["taxable_cost_basis"] *= (1 - ratio)
             state["taxable"] -= draw
             remaining -= draw
 
-        # Step 2: Withdraw from traditional (gross up for tax)
-        if remaining > 0 and state["traditional"] > 0:
-            # Estimate tax on traditional withdrawal using marginal rate
-            # Iterate to converge on the gross-up amount
-            # Base taxable income before traditional withdrawal:
-            base_taxable = ss_income * 0.85 + rental_income  # approximate
+        # Step 2: Voluntary withdraw from traditional (above RMD). Gross up
+        # for tax using current marginal rate (RMD already in the stack).
+        trad_total = state["traditional_primary"] + state["traditional_spouse"]
+        if remaining > 0 and trad_total > 0:
+            base_ord = ss_income * 0.85 + rental_income + rmd_total
             _, _, marg = federal_income_tax(
-                max(0, base_taxable - std_ded), year, gen_inflation
+                max(0, base_ord - std_ded), year, gen_inflation, filing_status
             )
             marginal = marg / 100
             if marginal >= 1:
                 marginal = 0.37
-            gross_needed = remaining / (1 - marginal)
-            gross_needed = min(gross_needed, state["traditional"])
+            gross_needed = remaining / max(1 - marginal, 0.01)
+            gross_needed = min(gross_needed, trad_total)
+            # Proportional split across sub-pools (preserves owner balances).
+            f_p = state["traditional_primary"] / trad_total
+            state["traditional_primary"] -= gross_needed * f_p
+            state["traditional_spouse"] -= gross_needed * (1 - f_p)
             withdrawal_from_traditional = gross_needed
-            state["traditional"] -= gross_needed
-            remaining -= (gross_needed - gross_needed * marginal)
+            remaining -= gross_needed * (1 - marginal)
             remaining = max(0, remaining)
 
-        # Step 3: Withdraw from Roth (tax-free)
+        # Step 3: Roth (tax-free, last resort)
         if remaining > 0 and state["roth"] > 0:
             draw = min(remaining, state["roth"])
             withdrawal_from_roth = draw
@@ -990,12 +1110,8 @@ def _project_year(
             + withdrawal_from_roth
         )
 
-        # Now compute actual taxes on all retirement income
-        taxable_gains = 0.0
-        if withdrawal_from_taxable > 0:
-            # Approximate gains portion (already computed above)
-            taxable_gains = withdrawal_from_taxable * gains_frac if withdrawal_from_taxable > 0 else 0
-
+        # Compute actual taxes on all retirement income (RMD + voluntary trad +
+        # LTCG from taxable draw + any RSU cap gains + SS + rental).
         tax_result = compute_year_taxes(
             gross_earned_income=0,
             traditional_deductions=0,
@@ -1003,7 +1119,7 @@ def _project_year(
             ltcg_income=taxable_gains + rsu_cap_gains,
             social_security_income=ss_income,
             rental_income=rental_income,
-            traditional_withdrawal=withdrawal_from_traditional,
+            traditional_withdrawal=rmd_total + withdrawal_from_traditional,
             year=year,
             inflation_pct=gen_inflation,
             filing_status=filing_status,
@@ -1016,22 +1132,29 @@ def _project_year(
         cap_gains_tax = tax_result["ltcg_tax"]
         niit_amt = tax_result["niit"]
         state_tax = tax_result["state_tax"]
-        # No FICA in retirement (no earned income)
         effective_tax_rate = tax_result["effective_rate_pct"]
         marginal_tax_rate = tax_result["marginal_rate_pct"]
 
-        # In retirement, no sell-to-cover, so cash_tax_owed = total_tax
+        # No FICA in retirement (no earned income)
         total_expenses += tax_result["cash_tax_owed"]
 
-        # If SS + rental exceeds expenses + tax, surplus goes to taxable
-        net_retirement_income = ss_income + rental_income - total_expenses
+        # Excess cash (income + RMD + HSA > expenses + tax) → taxable brokerage.
+        total_cash_in = (
+            ss_income + rental_income + rmd_total + withdrawal_from_hsa
+        )
+        net_retirement_income = total_cash_in - total_expenses
         if net_retirement_income > 0 and shortfall == 0:
             state["taxable"] += net_retirement_income
             state["taxable_cost_basis"] += net_retirement_income
 
-    # Sync liquid_portfolio from the three pools
+    # Snapshot ending traditional balances for next year's RMD computation.
+    state["prior_traditional_primary"] = state["traditional_primary"]
+    state["prior_traditional_spouse"] = state["traditional_spouse"]
+
+    # Sync liquid_portfolio from all five pools
     state["liquid_portfolio"] = (
-        state["traditional"] + state["roth"] + state["taxable"]
+        state["traditional_primary"] + state["traditional_spouse"]
+        + state["roth"] + state["taxable"] + state["hsa"]
     )
     state["liquid_portfolio"] = max(0, state["liquid_portfolio"])
 
@@ -1069,6 +1192,79 @@ def _project_year(
     for child in state["children"]:
         net_worth += child.get("_529_balance", 0)
 
+    # Aggregate traditional balance (sum of owner sub-pools) for back-compat.
+    traditional_total = state["traditional_primary"] + state["traditional_spouse"]
+    total_tax = income_tax + cap_gains_tax + niit_amt + fica + state_tax
+
+    # Gross/net on RMDs for the waterfall. Net = gross minus the proportional
+    # share of ordinary tax attributable to RMD (approximation using effective
+    # ordinary federal rate).
+    rmd_tax = 0.0
+    if rmd_total > 0 and (income_tax + state_tax) > 0:
+        # Approximate: RMD's share of ordinary-income tax, assuming RMD is
+        # taxed at the effective ordinary rate. Simpler than re-running the
+        # full tax stack.
+        rmd_tax = min(income_tax + state_tax, rmd_total * effective_tax_rate / 100)
+    rmd_net = max(0, rmd_total - rmd_tax)
+
+    # Per-expense bucket totals for the waterfall
+    vehicle_bucket = vehicle_cost + auto_loan_payments + existing_vehicle_loan_payments
+    property_bucket = property_carrying_costs + property_taxes + property_insurance
+
+    cash_flow = {
+        # Inflows
+        "earned_income": round(gross_income - rsu_vest_income, 2),
+        "rsu_vest_income": round(rsu_vest_income, 2),
+        "social_security": round(ss_income, 2),
+        "rental_income": round(rental_income, 2),
+        "rmd_gross": round(rmd_total, 2),
+        "rmd_tax": round(rmd_tax, 2),
+        "rmd_net": round(rmd_net, 2),
+        "rmd_primary": round(rmd_primary_gross, 2),
+        "rmd_spouse": round(rmd_spouse_gross, 2),
+        "windfall_gross": round(windfall_gross, 2),
+        "windfall_net": round(windfall_net, 2),
+
+        # Outflows
+        "living_expenses": round(living_expenses, 2),
+        "healthcare": round(healthcare_cost, 2),
+        "mortgage": round(mortgage_payments, 2),
+        "college": round(college_cost, 2),
+        "vehicle": round(vehicle_bucket, 2),
+        "debt_payments": round(debt_payments, 2),
+        "property_costs": round(property_bucket, 2),
+        "large_purchase": round(large_purchase_cost, 2),
+        "total_expenses": round(total_expenses, 2),
+
+        # Tax
+        "federal_income_tax": round(income_tax, 2),
+        "state_tax": round(state_tax, 2),
+        "fica": round(fica, 2),
+        "ltcg_tax": round(cap_gains_tax, 2),
+        "niit": round(niit_amt, 2),
+        "total_tax": round(total_tax, 2),
+
+        # Portfolio withdrawals to cover shortfall
+        "from_taxable": round(withdrawal_from_taxable, 2),
+        "from_traditional": round(withdrawal_from_traditional, 2),
+        "from_roth": round(withdrawal_from_roth, 2),
+        "from_hsa_medical": round(withdrawal_from_hsa, 2),
+
+        # Investment returns (per pool)
+        "returns_traditional_primary": round(returns_by_pool.get("traditional_primary", 0), 2),
+        "returns_traditional_spouse": round(returns_by_pool.get("traditional_spouse", 0), 2),
+        "returns_roth": round(returns_by_pool.get("roth", 0), 2),
+        "returns_taxable": round(returns_by_pool.get("taxable", 0), 2),
+        "returns_hsa": round(returns_by_pool.get("hsa", 0), 2),
+
+        # End-of-year balances
+        "balance_traditional_primary": round(state["traditional_primary"], 2),
+        "balance_traditional_spouse": round(state["traditional_spouse"], 2),
+        "balance_roth": round(state["roth"], 2),
+        "balance_taxable": round(state["taxable"], 2),
+        "balance_hsa": round(state["hsa"], 2),
+    }
+
     return {
         "year": year,
         "age_primary": age,
@@ -1083,7 +1279,7 @@ def _project_year(
         "mortgage_payments": round(mortgage_payments, 2),
         "healthcare_costs": round(healthcare_cost, 2),
         "large_purchase_costs": round(large_purchase_cost, 2),
-        "vehicle_costs": round(vehicle_cost + auto_loan_payments + existing_vehicle_loan_payments, 2),
+        "vehicle_costs": round(vehicle_bucket, 2),
         "debt_payments": round(debt_payments, 2),
         "vehicle_equity": round(vehicle_equity, 2),
         "vehicle_loan_debt": round(vehicle_loan_debt, 2),
@@ -1091,7 +1287,7 @@ def _project_year(
         "property_carrying_costs": round(property_carrying_costs, 2),
         "property_taxes": round(property_taxes, 2),
         "property_insurance": round(property_insurance, 2),
-        "income_tax": round(income_tax + cap_gains_tax + niit_amt + fica + state_tax, 2),
+        "income_tax": round(total_tax, 2),
         "federal_income_tax": round(income_tax, 2),
         "ltcg_tax": round(cap_gains_tax, 2),
         "niit": round(niit_amt, 2),
@@ -1106,11 +1302,22 @@ def _project_year(
         "withdrawal_from_taxable": round(withdrawal_from_taxable, 2),
         "withdrawal_from_traditional": round(withdrawal_from_traditional, 2),
         "withdrawal_from_roth": round(withdrawal_from_roth, 2),
+        # New: RMD + HSA tracking at the top level (and repeated inside cash_flow)
+        "rmd_primary": round(rmd_primary_gross, 2),
+        "rmd_spouse": round(rmd_spouse_gross, 2),
+        "withdrawal_from_hsa": round(withdrawal_from_hsa, 2),
         "net_worth": round(net_worth, 2),
         "liquid_net_worth": round(state["liquid_portfolio"] + rsu_held_value, 2),
-        "traditional_balance": round(state["traditional"], 2),
+        # Balances: traditional_balance aggregates both owner sub-pools for
+        # back-compat; new traditional_primary_balance / traditional_spouse_balance
+        # and hsa_balance are exposed for callers that want the split.
+        "traditional_balance": round(traditional_total, 2),
+        "traditional_primary_balance": round(state["traditional_primary"], 2),
+        "traditional_spouse_balance": round(state["traditional_spouse"], 2),
         "roth_balance": round(state["roth"], 2),
         "taxable_balance": round(state["taxable"], 2),
+        "hsa_balance": round(state["hsa"], 2),
         "real_estate_equity": round(re_equity, 2),
         "events": events,
+        "cash_flow": cash_flow,
     }
