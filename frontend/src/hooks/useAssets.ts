@@ -10,6 +10,8 @@ export function useUpdateAssets() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: AssetsFile) => assetsApi.put(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["assets"] }),
+    onSuccess: (_resp, savedData) => {
+      qc.setQueryData(["assets"], savedData);
+    },
   });
 }

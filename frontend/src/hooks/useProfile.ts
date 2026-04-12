@@ -10,6 +10,9 @@ export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: Profile) => profileApi.put(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["profile"] }),
+    onSuccess: (_resp, savedData) => {
+      // Update cache directly instead of refetching — prevents overwriting in-flight edits
+      qc.setQueryData(["profile"], savedData);
+    },
   });
 }
