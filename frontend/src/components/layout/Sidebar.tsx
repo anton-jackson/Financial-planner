@@ -14,6 +14,7 @@ import {
   Home,
   Car,
   CreditCard,
+  GraduationCap,
 } from "lucide-react";
 import { useAgent } from "../agent/AgentContext";
 
@@ -25,6 +26,7 @@ const DATA_LINKS = [
   { to: "/vehicles", label: "Vehicles", icon: Car },
   { to: "/debt", label: "Debt", icon: CreditCard },
   { to: "/windfalls", label: "Windfalls", icon: Gift },
+  { to: "/college", label: "College Planning", icon: GraduationCap },
 ];
 
 const ANALYSIS_LINKS = [
