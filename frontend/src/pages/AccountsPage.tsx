@@ -296,6 +296,7 @@ export function AccountsPage() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
   const [holdingsLoading, setHoldingsLoading] = useState(true);
+  const [holdingsSaving, setHoldingsSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -345,23 +346,32 @@ export function AccountsPage() {
     .filter(({ asset }) => asset.type !== "real_estate");
 
   const dirty = assetsDirty || holdingsDirty;
-  const saving = updateAssets.isPending;
+  const saving = updateAssets.isPending || holdingsSaving;
 
   const save = async () => {
     if (assetsDirty) {
       updateAssets.mutate(localAssets, { onSuccess: () => setAssetsDirty(false) });
     }
     if (holdingsDirty && holdings) {
+      setHoldingsSaving(true);
       try {
         await holdingsApi.put(holdings);
         setHoldingsDirty(false);
       } catch (err) {
         console.error(err);
+      } finally {
+        setHoldingsSaving(false);
       }
     }
   };
 
-  const totalBalance = investmentAccounts.reduce((sum, { asset }) => sum + asset.balance, 0);
+  const totalBalance = investmentAccounts.reduce((sum, { asset }) => {
+    const ah = getAccountHoldings(asset.name);
+    if (ah && ah.holdings.length > 0) {
+      return sum + ah.holdings.reduce((s, h) => s + (h.market_value || h.shares * h.price), 0);
+    }
+    return sum + asset.balance;
+  }, 0);
 
   const onAssetChange = (actualIndex: number, field: string, value: string | number) => {
     setLocalAssets((prev) => {
@@ -478,7 +488,10 @@ export function AccountsPage() {
         }
         return { ...a, holdings: newHoldings };
       });
-      return { ...prev, accounts };
+      const updated = { ...prev, accounts };
+      // Recompute allocation after holdings change
+      setTimeout(() => computeAllocation(updated), 0);
+      return updated;
     });
     setHoldingsDirty(true);
   };
@@ -490,6 +503,20 @@ export function AccountsPage() {
       setHoldings(updated);
       setHoldingsDirty(false);
       computeAllocation(updated);
+      // Sync account balances back to assets when holdings have values
+      setLocalAssets((prev) => {
+        if (!prev) return prev;
+        const assets = prev.assets.map((a) => {
+          const ah = updated.accounts.find((acc) => acc.account_name === a.name);
+          if (ah && ah.holdings.length > 0) {
+            const total = ah.holdings.reduce((s, h) => s + (h.market_value || h.shares * h.price), 0);
+            return { ...a, balance: total };
+          }
+          return a;
+        });
+        return { ...prev, assets };
+      });
+      setAssetsDirty(true);
     } finally {
       setRefreshing(false);
     }
@@ -532,6 +559,32 @@ export function AccountsPage() {
           "If holdings are entered, you can refresh prices to auto-update market values.",
         ]}
       />
+
+      {/* Account heading + Add Account */}
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Accounts</h3>
+        <div className="relative">
+          <button
+            onClick={() => setAddMenuOpen(!addMenuOpen)}
+            className="text-sm text-blue-600 hover:text-blue-800"
+          >
+            + Add Account
+          </button>
+          {addMenuOpen && (
+            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 w-48">
+              {Object.entries(ACCOUNT_TYPE_LABELS).map(([type, label]) => (
+                <button
+                  key={type}
+                  onClick={() => addAccount(type)}
+                  className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Account cards */}
       <div className="flex flex-col gap-4 mb-8">
@@ -708,29 +761,6 @@ export function AccountsPage() {
         })}
         {investmentAccounts.length === 0 && (
           <div className="text-sm text-slate-400 text-center py-4">No accounts — add one above</div>
-        )}
-      </div>
-
-      {/* Add Account button */}
-      <div className="mb-8 relative">
-        <button
-          onClick={() => setAddMenuOpen(!addMenuOpen)}
-          className="text-sm text-blue-600 hover:text-blue-800"
-        >
-          + Add Account
-        </button>
-        {addMenuOpen && (
-          <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-10 w-48">
-            {Object.entries(ACCOUNT_TYPE_LABELS).map(([type, label]) => (
-              <button
-                key={type}
-                onClick={() => addAccount(type)}
-                className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         )}
       </div>
 
