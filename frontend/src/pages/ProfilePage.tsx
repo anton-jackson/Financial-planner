@@ -127,6 +127,7 @@ export function ProfilePage() {
         college_start_year: new Date().getFullYear() + 8,
         college_years: 4,
         current_school: null,
+        school_stages: [],
         plan_529_balance: 0,
         plan_529_monthly_contribution: 0,
         parent_college_annual: 0,

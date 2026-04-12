@@ -69,6 +69,7 @@ export function PropertyPage() {
       type: "real_estate",
       balance: 0,
       return_profile: "real_estate",
+      owner: "joint",
       properties: {
         mortgage_balance: 0,
         mortgage_rate_pct: 0,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAssets, useUpdateAssets } from "../hooks/useAssets";
 import { useProfile } from "../hooks/useProfile";
 import { useAutoSave } from "../hooks/useAutoSave";
