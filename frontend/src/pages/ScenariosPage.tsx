@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { FormField, Input } from "../components/shared/FormField";
 import { useProfile } from "../hooks/useProfile";
 import { useAssets } from "../hooks/useAssets";
-import type { Scenario, LargePurchase, LifeEvent, CollegeParentOverride, PropertyOverride } from "../types/scenario";
+import type { Scenario, LargePurchase, LifeEvent, PropertyOverride } from "../types/scenario";
 import { SectionHelp } from "../components/shared/SectionHelp";
 
 /* ─── Sub-editors (unchanged) ─── */
@@ -733,41 +733,42 @@ export function ScenariosPage() {
                 <div>
                   <div className="text-xs font-medium text-slate-500 mb-2">Property Overrides</div>
                   <div className="flex flex-col gap-3">
-                    {properties.map((prop: { name: string; properties?: Record<string, number> }) => {
-                      const defaults = prop.properties ?? {};
+                    {properties.map((prop: { name: string; properties?: Record<string, unknown> }) => {
+                      const raw = prop.properties ?? {};
+                      const d = (key: string) => typeof raw[key] === "number" ? raw[key] as number : undefined;
                       const override = (local.assumptions.property_overrides ?? []).find((o) => o.name === prop.name);
                       return (
                         <div key={prop.name} className="bg-slate-50 rounded-lg border border-slate-200 p-3">
                           <div className="text-sm font-medium text-slate-600 mb-2">{prop.name}</div>
                           <div className="grid grid-cols-4 gap-3">
-                            <FormField label="Appreciation %" hint={defaults.appreciation_rate_pct != null ? `Current: ${defaults.appreciation_rate_pct}%` : undefined}>
+                            <FormField label="Appreciation %" hint={d("appreciation_rate_pct") != null ? `Current: ${d("appreciation_rate_pct")}%` : undefined}>
                               <Input
                                 type="number" step="0.1"
-                                placeholder={defaults.appreciation_rate_pct?.toString() ?? ""}
+                                placeholder={d("appreciation_rate_pct")?.toString() ?? ""}
                                 value={override?.appreciation_rate_pct ?? ""}
                                 onChange={(e) => updatePropertyOverride(prop.name, "appreciation_rate_pct", e.target.value)}
                               />
                             </FormField>
-                            <FormField label="Property Tax" hint={defaults.annual_property_tax ? `Current: $${defaults.annual_property_tax.toLocaleString()}` : undefined}>
+                            <FormField label="Property Tax" hint={d("annual_property_tax") != null ? `Current: $${d("annual_property_tax")!.toLocaleString()}` : undefined}>
                               <Input
                                 type="number"
-                                placeholder={defaults.annual_property_tax?.toString() ?? ""}
+                                placeholder={d("annual_property_tax")?.toString() ?? ""}
                                 value={override?.annual_property_tax ?? ""}
                                 onChange={(e) => updatePropertyOverride(prop.name, "annual_property_tax", e.target.value)}
                               />
                             </FormField>
-                            <FormField label="Carrying Cost" hint={defaults.annual_carrying_cost ? `Current: $${defaults.annual_carrying_cost.toLocaleString()}` : undefined}>
+                            <FormField label="Carrying Cost" hint={d("annual_carrying_cost") != null ? `Current: $${d("annual_carrying_cost")!.toLocaleString()}` : undefined}>
                               <Input
                                 type="number"
-                                placeholder={defaults.annual_carrying_cost?.toString() ?? ""}
+                                placeholder={d("annual_carrying_cost")?.toString() ?? ""}
                                 value={override?.annual_carrying_cost ?? ""}
                                 onChange={(e) => updatePropertyOverride(prop.name, "annual_carrying_cost", e.target.value)}
                               />
                             </FormField>
-                            <FormField label="Insurance" hint={defaults.annual_insurance ? `Current: $${defaults.annual_insurance.toLocaleString()}` : undefined}>
+                            <FormField label="Insurance" hint={d("annual_insurance") != null ? `Current: $${d("annual_insurance")!.toLocaleString()}` : undefined}>
                               <Input
                                 type="number"
-                                placeholder={defaults.annual_insurance?.toString() ?? ""}
+                                placeholder={d("annual_insurance")?.toString() ?? ""}
                                 value={override?.annual_insurance ?? ""}
                                 onChange={(e) => updatePropertyOverride(prop.name, "annual_insurance", e.target.value)}
                               />
