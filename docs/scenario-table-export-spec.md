@@ -101,7 +101,17 @@ reorganized and with a few derived fields added.
 **I. Balances — end of year (10)**
 - `bal_taxable`, `bal_traditional_primary`, `bal_traditional_spouse`,
   `bal_traditional_total`, `bal_roth`, `bal_hsa`, `bal_529`,
-  `bal_real_estate_equity`, `bal_vehicle_equity`, `bal_cash` (if tracked)
+  `bal_real_estate_equity_total`, `bal_vehicle_equity`, `bal_cash` (if
+  tracked)
+- **Per-property real estate.** In addition to the aggregate
+  `bal_real_estate_equity_total`, the bundle includes a nested
+  `real_estate` array per year with one entry per property:
+  `{property_id, label, market_value, mortgage_balance, equity,
+  annual_carry_cost}`. This lets an agent reason about selling a
+  specific property ("what if we sell the Tahoe place in 2035?")
+  without re-running the sim. In flat CSV exports this expands to
+  `re_<property_id>_equity`, `re_<property_id>_market_value`, etc.,
+  columns; the aggregate column is always present.
 
 **J. Debts — end of year (3)**
 - `debt_mortgage`, `debt_vehicle_loan`, `debt_other`
@@ -116,9 +126,41 @@ reorganized and with a few derived fields added.
   year per glide path)
 
 **L. Narrative (1)**
-- `events` — `string[]` of notable triggers ("Primary retires", "College
-  starts — child 1", "Mortgage paid off", "Large purchase: kitchen reno
-  $80k", "SS claim — primary"). This is the column the LLM quotes back.
+- `events` — array of structured event objects, each with a
+  human-readable rendering carried alongside the data. Shape:
+
+  ```json
+  {
+    "code": "large_purchase",
+    "label": "Kitchen reno",
+    "amount": 80000,
+    "text": "Large purchase: Kitchen reno ($80k)"
+  }
+  ```
+
+  Rules:
+  - `code` is drawn from a closed vocabulary documented in the column
+    dictionary: `retirement_start`, `ss_claim`, `rmd_start`,
+    `college_start`, `college_end`, `mortgage_payoff`, `large_purchase`,
+    `windfall`, `vehicle_purchase`, `life_event_death`,
+    `allocation_shift`, `property_sale`, `property_purchase`. New codes
+    are additive; renames bump `schema_version`.
+  - `text` is the engine's canonical rendering for that `code` — stable
+    template, not freeform. All human-facing surfaces (UI table,
+    Markdown export, CSV `events_text` column) render from `text`
+    directly. No client-side formatting.
+  - Optional typed fields per code: `amount` (USD), `subject`
+    (`primary | spouse | child_<n>`), `account`, `property_id`.
+  - Legacy v1 string events are wrapped on read as
+    `{code: "legacy", text: <original string>}` so old persisted
+    results still load.
+
+  **Export behavior:**
+  - JSON → full structured array.
+  - Markdown → joined `text` values.
+  - CSV → two columns: `events_text` (pipe-joined strings, for humans
+    and spreadsheets) and `events_json` (compact JSON, for agents).
+    Either can be ignored without losing the other.
 
 **Total: ~68 columns.** Big, but each value is cheap and the wide layout is
 exactly what an LLM wants — no pivot math required to answer "show me tax
@@ -225,14 +267,31 @@ All derived from the same in-memory bundle:
 4. Per-row expand-on-click shows the `CashFlowWaterfall` + `events` for
    that year as a readable panel.
 
-### 2.9 Open Questions
+### 2.9 Decisions & Open Questions
 
-- Should `events` be structured (`[{code, label, amount}]`) instead of
-  free strings? Structured is better for the agent; worth the migration.
-- Do we want a per-row confidence column for MC (e.g. "width of p10–p90
-  band as % of p50")? Useful for "which years are most uncertain".
-- Real-estate equity is today a single number — do we want per-property
-  breakdown? Probably yes if a user has >1 property.
+**Decided:**
+
+1. **Events are structured with a rendered `text` field.** See §L above.
+   Both audiences served from one field: `code` + typed payload for the
+   agent, stable `text` template for humans. CSV splits into
+   `events_text` + `events_json` columns. Legacy string events are
+   wrapped on read.
+
+2. **Real estate is broken out per property.** Aggregate
+   `bal_real_estate_equity_total` stays for the quick-scan use case; a
+   nested `real_estate` array (or expanded `re_<property_id>_*` columns
+   in flat CSV) carries per-property market value, mortgage, equity,
+   and carry cost. Required for "what if we sell X?" Q&A. See §I above.
+
+**Deferred (do not implement in v1 until justified):**
+
+3. **Per-row MC uncertainty column** (e.g. `nw_band_width_pct =
+   (p90 − p10) / p50`). Value and precision aren't obvious yet —
+   agents can compute it on the fly from the stacked-percentile rows
+   (§2.3) when asked. Revisit if we see it come up repeatedly in agent
+   sessions, or if users explicitly ask "which years are most
+   uncertain." Leaving the door open costs nothing since the p10/p90
+   columns are already there.
 
 ## 3. Secondary: Getting the Bundle to an Agent
 
