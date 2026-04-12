@@ -141,15 +141,30 @@ class Savings(BaseModel):
 
 
 class Expenses(BaseModel):
-    """Annual household living expenses in today's dollars.
+    """Other annual living expenses in today's dollars.
 
-    Excludes mortgage, tuition, and healthcare — those are modeled separately.
-    This covers: food, utilities, transport, insurance, travel, subscriptions, etc.
+    This is a residual bucket: everything NOT modeled elsewhere. Do NOT include
+    mortgage & property taxes/insurance, tuition & 529 contributions, healthcare
+    premiums & out-of-pocket, debt payments, auto loans & auto purchases,
+    retirement & HSA contributions, or income/payroll taxes — those are
+    captured in their own models and computed by the engine.
     """
-    annual_base: float = 80000  # household spending today (excl mortgage/tuition/healthcare)
+    annual_base: float = 80000  # other annual living expenses today (see docstring)
     retirement_reduction_pct: float = 20  # % reduction in retirement
     per_child_annual: float = 15000  # per-child cost that drops when they leave
     children_leave_after_college: bool = True  # drop per-child cost after college end
+
+
+class HealthcareOverride(BaseModel):
+    """User-provided current-year healthcare costs (pre-retirement only).
+
+    When set, these override the scenario's healthcare assumptions for the
+    pre-retirement phase. ACA marketplace and Medicare values remain
+    scenario-driven regardless. Leave fields as None to fall back to scenario
+    estimates.
+    """
+    annual_premium: float | None = None  # current annual premium in today's dollars
+    annual_out_of_pocket: float | None = None  # current annual OOP in today's dollars
 
 
 class TaxConfig(BaseModel):
@@ -242,6 +257,7 @@ class Profile(BaseModel):
     income: Income = Income()
     savings: Savings = Savings()
     expenses: Expenses = Expenses()
+    healthcare_override: HealthcareOverride | None = None
     tax: TaxConfig = TaxConfig()
     windfalls: list[Windfall] = []
     existing_vehicles: list[ExistingVehicle] = []

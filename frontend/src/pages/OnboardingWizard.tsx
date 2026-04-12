@@ -491,13 +491,16 @@ function StepMoneyOut({
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <h3 className="text-sm font-semibold text-slate-600 mb-3">Annual Expenses</h3>
+        <h3 className="text-sm font-semibold text-slate-600 mb-3">Other Annual Living Expenses</h3>
         <p className="text-xs text-slate-400 mb-4">
-          Your total annual household spending excluding mortgage, tuition, and healthcare
-          (those are modeled separately). Include: food, utilities, transport, insurance, travel, subscriptions.
+          A residual bucket — everything NOT modeled elsewhere. Do <strong>not</strong> include:
+          mortgage &amp; property taxes/insurance, tuition &amp; 529 contributions, healthcare premiums
+          &amp; out-of-pocket, debt payments, auto loans &amp; auto purchases, retirement &amp; HSA
+          contributions, or income/payroll taxes. Those are captured in their own sections and
+          computed by the engine.
         </p>
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Annual Base Expenses" hint="In today's dollars">
+          <FormField label="Other Annual Living Expenses" hint="In today's dollars">
             <Input type="number" value={data.annual_expenses} onChange={(e) => set("annual_expenses", num(e))} />
           </FormField>
           <FormField label="Retirement Spending Reduction %" hint="How much less you'll spend in retirement">
