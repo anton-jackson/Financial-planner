@@ -125,6 +125,23 @@ Model life phases with different spending/saving profiles (e.g., kids at home, e
 ### Update Onboarding Wizard
 Onboarding wizard needs updating. Scope TBD.
 
+### Default Scenario Distribution on Deploy
+
+Ship updated default scenarios (Base / Bear / Bull) to remote instances when we push new versions, without causing dirty-tree churn in local dev.
+
+**Current behavior:** `backend/seed_scenarios.py` defines prebuilt scenarios as a Python dict (`PREBUILT_SCENARIOS`), and `seed_prebuilt_scenarios()` runs on every backend startup from `backend/main.py:26` and **always overwrites** the on-disk YAMLs via `yaml.dump(...)`. The always-overwrite ensures GCS volume-mounted deployments pick up new defaults after a deploy. Side effect locally: every `uvicorn --reload` cycle re-serializes the YAMLs (em-dashes → `\u2014`, blank lines collapsed), so `git status` always shows 3 modified scenario files.
+
+**The real concern:** we need a reliable mechanism for new default-scenario content to reach the remote servers on deploy.
+
+**Options:**
+- **Make seeder idempotent** — compare normalized content hash of `PREBUILT_SCENARIOS[slug]` against what's on disk; only write when semantically different. Solves the local churn while keeping deploy-time updates.
+- **Treat YAMLs as generated artifacts** — gitignore `backend/data/scenarios/*.yaml`, keep the Python dict as the single source of truth. Deploys ship the Python code; startup always writes fresh. Simplest but loses human-readability of YAMLs in the repo.
+- **Template YAMLs + copy-if-missing** — keep the YAMLs in the repo as the canonical source, seeder only writes when a file is missing on disk. Breaks updates on already-deployed instances (file exists → skip).
+
+Recommendation: go with the idempotent-seeder option — keeps the deploy-time update property, eliminates the local churn, and keeps YAMLs in the repo for readability.
+
+**Why this matters:** when we change a default assumption (e.g., update Bull Case stocks_mean_pct), it needs to propagate to existing deployments without requiring manual file edits or config migrations.
+
 ---
 
 ## Features Best Served by AI Agent
