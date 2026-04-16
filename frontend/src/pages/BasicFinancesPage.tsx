@@ -5,8 +5,9 @@ import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
 import { ReconciliationPanel } from "../components/shared/ReconciliationPanel";
+import { estimateYear1Taxes, type FilingStatus } from "../lib/taxEstimate";
 import type { AssetsFile } from "../types/assets";
-import type { Profile, PersonSavings, Expenses, HealthcareOverride, TaxConfig, VestingTranche, RSUHolding } from "../types/profile";
+import type { Profile, PersonSavings, Expenses, HealthcareOverride, VestingTranche, RSUHolding } from "../types/profile";
 
 // ─── RSU Sub-section ──────────────────────────────────────────────
 
@@ -406,7 +407,7 @@ function ModeledSeparatelySummary({ profile, assets }: { profile: Profile; asset
   return (
     <div className="mt-4 bg-slate-50 border border-slate-200 rounded-md p-3">
       <div className="text-xs font-medium text-slate-600 mb-2">
-        Modeled separately — do NOT include these in the field above
+        Entered separately — do NOT include these in the field above
       </div>
       <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs text-slate-600">
         {items.map((i) => (
@@ -538,12 +539,57 @@ function HealthcareOverrideSection({
 // ─── Tax Section ──────────────────────────────────────────────────
 
 function TaxSection({
-  tax,
+  profile,
   onChange,
 }: {
-  tax: TaxConfig;
+  profile: Profile;
   onChange: (field: string, value: number | string) => void;
 }) {
+  const tax = profile.tax;
+
+  // Live estimate of effective rates so the user can see what the engine will
+  // roughly apply given their salary + RSU + filing status + state. RSU vest
+  // is ordinary income and is included in the tax base — sell-to-cover is
+  // only a withholding mechanism at vest, not a separate tax.
+  const primarySalary = profile.income.primary.base_salary;
+  const primaryBonus = primarySalary * (profile.income.primary.bonus_pct / 100);
+  const spouseSalary = profile.income.spouse?.base_salary ?? 0;
+  const spouseBonus = spouseSalary * ((profile.income.spouse?.bonus_pct ?? 0) / 100);
+  const wages = primarySalary + primaryBonus + spouseSalary + spouseBonus;
+
+  const currentYear = new Date().getFullYear();
+  const rsuVestThisYear = (() => {
+    let total = 0;
+    for (const rsu of [profile.income.rsu, profile.income.spouse_rsu]) {
+      if (!rsu) continue;
+      for (const t of rsu.unvested_tranches || []) {
+        if (t.vest_year === currentYear) total += t.shares * rsu.current_price;
+      }
+    }
+    return total;
+  })();
+  const totalOrdinaryIncome = wages + rsuVestThisYear;
+
+  const preTaxDeductions =
+    profile.savings.primary.annual_401k_traditional +
+    profile.savings.primary.annual_hsa +
+    (profile.spouse
+      ? profile.savings.spouse.annual_401k_traditional + profile.savings.spouse.annual_hsa
+      : 0);
+
+  const taxEst = estimateYear1Taxes({
+    wages,
+    rsuVestIncome: rsuVestThisYear,
+    preTaxDeductions,
+    filingStatus: (tax.filing_status as FilingStatus) || "mfj",
+    state: profile.personal.state_of_residence || "",
+    stateOverridePct: tax.state_income_tax_pct || 0,
+  });
+
+  const fedPct = totalOrdinaryIncome > 0 ? (taxEst.federal / totalOrdinaryIncome) * 100 : 0;
+  const statePct = totalOrdinaryIncome > 0 ? (taxEst.state / totalOrdinaryIncome) * 100 : 0;
+  const ficaPct = totalOrdinaryIncome > 0 ? (taxEst.fica / totalOrdinaryIncome) * 100 : 0;
+
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
       <h3 className="text-lg font-semibold mb-2">Taxes</h3>
@@ -572,6 +618,37 @@ function TaxSection({
           <Input type="number" step="0.1" value={tax.state_income_tax_pct} onChange={(e) => onChange("state_income_tax_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
       </div>
+
+      {totalOrdinaryIncome > 0 && (
+        <div className="mt-4 bg-slate-50 border border-slate-200 rounded-md p-3">
+          <div className="text-xs font-medium text-slate-600 mb-2">
+            Estimated effective rates on total ordinary income
+            {rsuVestThisYear > 0
+              ? ` (salary + bonus + $${Math.round(rsuVestThisYear).toLocaleString()} RSU vest)`
+              : " (salary + bonus)"}
+          </div>
+          <div className="grid grid-cols-3 gap-x-4 text-xs text-slate-600">
+            <div className="flex flex-col">
+              <span className="text-slate-500">Federal</span>
+              <span className="font-mono text-slate-800">~{fedPct.toFixed(1)}%</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-slate-500">State</span>
+              <span className="font-mono text-slate-800">~{statePct.toFixed(1)}%</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-slate-500">FICA (SS + Medicare)</span>
+              <span className="font-mono text-slate-800">~{ficaPct.toFixed(1)}%</span>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">
+            2026 brackets, progressive federal calculation, includes
+            Additional Medicare (0.9% above {(({ mfj: "$250k MFJ", single: "$200k single", hoh: "$200k HoH" } as const))[(tax.filing_status as FilingStatus) || "mfj"]}).
+            SS caps at $172,800 of wages. Engine computation is authoritative;
+            this is a display-only approximation.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -721,7 +798,7 @@ export function BasicFinancesPage() {
         <SavingsSection savings={local.savings} income={local.income} hasSpouse={!!local.spouse} primaryName={local.personal.name || "Primary"} spouseName={local.spouse?.name || "Spouse"} onChange={updateSavings} />
         <HealthcareOverrideSection override={local.healthcare_override} onChange={updateHealthcareOverride} />
         <ExpensesSection expenses={local.expenses} profile={local} assets={assets} onChange={updateExpenses} />
-        <TaxSection tax={local.tax} onChange={updateTax} />
+        <TaxSection profile={local} onChange={updateTax} />
         <ReconciliationPanel profile={local} assets={assets} />
       </div>
 

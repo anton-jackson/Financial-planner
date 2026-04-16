@@ -57,6 +57,15 @@ const STANDARD_DEDUCTION_2026: Record<FilingStatus, number> = {
 const SS_WAGE_CAP = 172_800;
 const SS_RATE = 0.062;
 const MEDICARE_RATE = 0.0145;
+// Additional Medicare tax on earned income above the per-status threshold.
+// See tax.py:94-101, tax.py:483-491. Matters materially for high-earner
+// budgets — 0.9% × excess compounds to real money over 30-year horizons.
+const ADDL_MEDICARE_RATE = 0.009;
+const ADDL_MEDICARE_THRESHOLD: Record<FilingStatus, number> = {
+  mfj: 250_000,
+  single: 200_000,
+  hoh: 200_000,
+};
 
 // States with no income tax — mirrors tax.py:130
 const NO_INCOME_TAX_STATES = new Set([
@@ -96,10 +105,11 @@ function computeFederalTax(taxableIncome: number, status: FilingStatus): number 
   return tax;
 }
 
-function computeFICA(wages: number): number {
+function computeFICA(wages: number, status: FilingStatus): number {
   const ss = Math.min(wages, SS_WAGE_CAP) * SS_RATE;
   const medicare = wages * MEDICARE_RATE;
-  return ss + medicare;
+  const addlMedicare = Math.max(0, wages - ADDL_MEDICARE_THRESHOLD[status]) * ADDL_MEDICARE_RATE;
+  return ss + medicare + addlMedicare;
 }
 
 function stateRate(state: string, overridePct: number): number {
@@ -115,8 +125,16 @@ function stateRate(state: string, overridePct: number): number {
 }
 
 export interface TaxEstimateInputs {
-  // Gross wages subject to FICA (salary + bonus, excluding RSU for simplicity).
+  // Salary + bonus. Subject to federal, state, FICA (SS up to the wage cap,
+  // Medicare on the full amount).
   wages: number;
+  // RSU vest value for the year. Taxed as supplemental wages — ordinary
+  // income at federal/state brackets and Medicare. SS also applies up to the
+  // combined wage cap (handled automatically since FICA is computed on
+  // wages + rsuVestIncome). Sell-to-cover is a withholding mechanism at vest,
+  // NOT a separate tax — so it is intentionally not an input here; the full
+  // vest value flows through the calculation.
+  rsuVestIncome?: number;
   // Pre-tax deductions (traditional 401k, HSA) that reduce federal taxable income.
   preTaxDeductions: number;
   // Filing status.
@@ -132,20 +150,21 @@ export interface TaxEstimate {
   state: number;
   fica: number;
   total: number;
-  effectiveRatePct: number; // against gross wages
+  effectiveRatePct: number; // against total ordinary income (wages + RSU)
 }
 
 /**
  * Approximate year-1 tax bill. See module docstring for caveats.
  */
 export function estimateYear1Taxes(inputs: TaxEstimateInputs): TaxEstimate {
-  const { wages, preTaxDeductions, filingStatus, state, stateOverridePct } = inputs;
-  const agi = Math.max(0, wages - preTaxDeductions);
+  const { wages, rsuVestIncome = 0, preTaxDeductions, filingStatus, state, stateOverridePct } = inputs;
+  const ordinaryIncome = wages + rsuVestIncome;
+  const agi = Math.max(0, ordinaryIncome - preTaxDeductions);
   const taxableIncome = Math.max(0, agi - STANDARD_DEDUCTION_2026[filingStatus]);
 
   const federal = computeFederalTax(taxableIncome, filingStatus);
   const state_tax = agi * stateRate(state, stateOverridePct);
-  const fica = computeFICA(wages);
+  const fica = computeFICA(ordinaryIncome, filingStatus);
   const total = federal + state_tax + fica;
 
   return {
@@ -153,6 +172,6 @@ export function estimateYear1Taxes(inputs: TaxEstimateInputs): TaxEstimate {
     state: Math.round(state_tax),
     fica: Math.round(fica),
     total: Math.round(total),
-    effectiveRatePct: wages > 0 ? (total / wages) * 100 : 0,
+    effectiveRatePct: ordinaryIncome > 0 ? (total / ordinaryIncome) * 100 : 0,
   };
 }
