@@ -15,6 +15,9 @@ dist/
 *.swp
 *.swo
 
+# Claude Code (per-user settings cache; launch.json is intentionally tracked)
+.claude/settings.local.json
+
 # OS
 .DS_Store
 Thumbs.db
