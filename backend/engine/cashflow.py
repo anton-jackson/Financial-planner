@@ -556,12 +556,20 @@ def _project_year(
         rental["monthly_rent"] *= 1 + gen_inflation / 100  # Rent grows with inflation
 
     # --- Healthcare ---
+    # Merge profile-level current-cost override onto scenario healthcare values.
+    # Override applies to pre-retirement only; ACA and Medicare remain scenario-driven.
+    healthcare_assumptions = dict(assumptions["healthcare"])
+    hc_override = profile.get("healthcare_override") or {}
+    if hc_override.get("annual_premium") is not None:
+        healthcare_assumptions["annual_premium_today"] = hc_override["annual_premium"]
+    if hc_override.get("annual_out_of_pocket") is not None:
+        healthcare_assumptions["annual_out_of_pocket_today"] = hc_override["annual_out_of_pocket"]
     healthcare_cost, hc_events = compute_healthcare_costs(
         year=year,
         base_year=base_year,
         age_primary=age,
         retirement_year=retirement_year,
-        healthcare=assumptions["healthcare"],
+        healthcare=healthcare_assumptions,
         healthcare_inflation_pct=inflation["healthcare_pct"],
     )
     events.extend(hc_events)

@@ -105,6 +105,16 @@ export interface Expenses {
   children_leave_after_college: boolean;
 }
 
+/**
+ * Optional user-entered current healthcare costs. When present, these override
+ * the scenario's pre-retirement healthcare assumptions. ACA and Medicare
+ * remain scenario-driven regardless.
+ */
+export interface HealthcareOverride {
+  annual_premium: number | null;
+  annual_out_of_pocket: number | null;
+}
+
 export interface TaxConfig {
   filing_status: string;
   pre_retirement_effective_pct: number;
@@ -166,6 +176,7 @@ export interface Profile {
   savings: Savings;
   tax: TaxConfig;
   expenses: Expenses;
+  healthcare_override?: HealthcareOverride | null;
   windfalls: Windfall[];
   existing_vehicles: ExistingVehicle[];
   vehicles: VehiclePurchase[];

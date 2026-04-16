@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useProfile, useUpdateProfile } from "../hooks/useProfile";
+import { useAssets } from "../hooks/useAssets";
 import { useAutoSave } from "../hooks/useAutoSave";
 import { FormField, Input } from "../components/shared/FormField";
 import { SectionHelp } from "../components/shared/SectionHelp";
-import type { Profile, PersonSavings, Expenses, TaxConfig, VestingTranche, RSUHolding } from "../types/profile";
+import { ReconciliationPanel } from "../components/shared/ReconciliationPanel";
+import { estimateYear1Taxes, type FilingStatus } from "../lib/taxEstimate";
+import type { AssetsFile } from "../types/assets";
+import type { Profile, PersonSavings, Expenses, HealthcareOverride, VestingTranche, RSUHolding } from "../types/profile";
 
 // ─── RSU Sub-section ──────────────────────────────────────────────
 
@@ -376,11 +380,59 @@ function SavingsSection({
 
 // ─── Expenses Section ─────────────────────────────────────────────
 
+function ModeledSeparatelySummary({ profile, assets }: { profile: Profile; assets: AssetsFile | undefined }) {
+  const realEstate = (assets?.assets ?? []).filter((a) => a.type === "real_estate");
+  const mortgageMonthly = realEstate.reduce((s, a) => s + Number(a.properties?.monthly_payment ?? 0), 0);
+  const propertyCarryAnnual = realEstate.reduce(
+    (s, a) =>
+      s +
+      Number(a.properties?.annual_property_tax ?? 0) +
+      Number(a.properties?.annual_insurance ?? 0) +
+      Number(a.properties?.annual_carrying_cost ?? 0),
+    0,
+  );
+  const debtMonthly = (profile.debts ?? []).reduce((s, d) => s + (d.monthly_payment ?? 0), 0);
+  const autoMonthly = (profile.existing_vehicles ?? []).reduce((s, v) => s + (v.monthly_payment ?? 0), 0);
+  const hc = profile.healthcare_override;
+  const healthcareAnnual = (hc?.annual_premium ?? 24_000) + (hc?.annual_out_of_pocket ?? 6_000);
+
+  const items: Array<{ label: string; value: string }> = [
+    { label: "Mortgage (P&I)", value: `$${Math.round(mortgageMonthly).toLocaleString()}/mo` },
+    { label: "Property tax + insurance + carrying", value: `$${Math.round(propertyCarryAnnual / 12).toLocaleString()}/mo` },
+    { label: "Debt service", value: `$${Math.round(debtMonthly).toLocaleString()}/mo` },
+    { label: "Auto loans", value: `$${Math.round(autoMonthly).toLocaleString()}/mo` },
+    { label: "Healthcare (today)", value: `$${Math.round(healthcareAnnual / 12).toLocaleString()}/mo` },
+  ];
+
+  return (
+    <div className="mt-4 bg-slate-50 border border-slate-200 rounded-md p-3">
+      <div className="text-xs font-medium text-slate-600 mb-2">
+        Entered separately — do NOT include these in the field above
+      </div>
+      <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs text-slate-600">
+        {items.map((i) => (
+          <div key={i.label} className="flex justify-between">
+            <span>{i.label}</span>
+            <span className="font-mono">{i.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[11px] text-slate-400 mt-2">
+        Tuition and retirement contributions are also tracked elsewhere. Income and payroll taxes are computed by the engine.
+      </div>
+    </div>
+  );
+}
+
 function ExpensesSection({
   expenses,
+  profile,
+  assets,
   onChange,
 }: {
   expenses: Expenses;
+  profile: Profile;
+  assets: AssetsFile | undefined;
   onChange: (field: string, value: number | boolean) => void;
 }) {
   const [monthly, setMonthly] = useState(true);
@@ -392,28 +444,28 @@ function ExpensesSection({
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-lg font-semibold">Expenses</h3>
+        <h3 className="text-lg font-semibold">Other Living Expenses</h3>
         <button onClick={() => setMonthly(!monthly)} className="text-xs text-blue-600 hover:text-blue-800">
           Show {monthly ? "Annual" : "Monthly"}
         </button>
       </div>
       <SectionHelp
-        summary="Base living expenses plus per-child costs. Per-child cost is ADDED ON TOP of base expenses — it's not included in the base number."
+        summary="A residual bucket — everything NOT already modeled elsewhere. Per-child cost is ADDED ON TOP of this number, not included in it."
         details={[
-          "Base expenses: your household spending (food, utilities, transport, insurance, travel, subscriptions). Includes utilities since those follow the household, not the property. Excludes mortgage, property tax, tuition, and healthcare — those are modeled separately.",
-          "Per-child cost: an additional amount per child, added to base expenses. With 2 kids at $15K each, total = base + $30K. Drops off when each child finishes college.",
+          "Do NOT include: mortgage & property taxes/insurance, tuition & 529 contributions, healthcare premiums & out-of-pocket, debt payments, auto loans & auto purchases, retirement & HSA contributions, or income/payroll taxes. Those are captured in their own sections and computed by the engine.",
+          "Per-child cost: an additional amount per child, added to this number. With 2 kids at $15K each, total = base + $30K. Drops off when each child finishes college.",
           "At retirement, total living expenses are reduced by the retirement reduction % — a one-time step-down.",
           "In retirement, expenses exceeding Social Security + other income are covered by portfolio withdrawals.",
         ]}
       />
       <div className="grid grid-cols-2 gap-4">
-        <FormField label={`Base ${period} Expenses`} hint={monthly ? `= $${Math.round(expenses.annual_base).toLocaleString()}/yr` : ""}>
+        <FormField label={`Other ${period} Living Expenses`} hint={monthly ? `= $${Math.round(expenses.annual_base).toLocaleString()}/yr` : ""}>
           <Input type="number" value={Math.round(displayBase)} onChange={(e) => onChange("annual_base", (parseFloat(e.target.value) || 0) * factor)} />
         </FormField>
         <FormField label="Retirement Reduction %" hint="Step-down at retirement">
           <Input type="number" step="1" value={expenses.retirement_reduction_pct} onChange={(e) => onChange("retirement_reduction_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
-        <FormField label={`Per-Child ${period} Cost`} hint={monthly ? `= $${Math.round(expenses.per_child_annual).toLocaleString()}/yr · added to base` : "Added on top of base expenses"}>
+        <FormField label={`Per-Child ${period} Cost`} hint={monthly ? `= $${Math.round(expenses.per_child_annual).toLocaleString()}/yr · added to base` : "Added on top of other living expenses"}>
           <Input type="number" value={Math.round(displayChild)} onChange={(e) => onChange("per_child_annual", (parseFloat(e.target.value) || 0) * factor)} />
         </FormField>
         <FormField label="Kids Leave After College">
@@ -427,6 +479,59 @@ function ExpensesSection({
           </select>
         </FormField>
       </div>
+      <ModeledSeparatelySummary profile={profile} assets={assets} />
+    </div>
+  );
+}
+
+// ─── Healthcare Override Section ──────────────────────────────────
+
+function HealthcareOverrideSection({
+  override,
+  onChange,
+}: {
+  override: HealthcareOverride | null | undefined;
+  onChange: (field: keyof HealthcareOverride, value: number | null) => void;
+}) {
+  const premium = override?.annual_premium ?? null;
+  const oop = override?.annual_out_of_pocket ?? null;
+
+  const parse = (raw: string): number | null => {
+    const trimmed = raw.trim();
+    if (trimmed === "") return null;
+    const n = parseFloat(trimmed);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  return (
+    <div className="bg-white rounded-lg border border-slate-200 p-6">
+      <h3 className="text-lg font-semibold mb-2">Healthcare (current cost)</h3>
+      <SectionHelp
+        summary="Optional: enter what you pay today. If blank, the engine uses scenario estimates ($24k premium / $6k out-of-pocket by default)."
+        details={[
+          "Applies to pre-retirement years only. ACA marketplace cost during the pre-Medicare gap and Medicare costs after 65 continue to come from the scenario.",
+          "All values are in today's dollars; the engine inflates them year-by-year using the scenario's healthcare inflation rate.",
+          "Leave either field blank to fall back to the scenario default for just that component.",
+        ]}
+      />
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Annual Premium" hint="Your share of premium, today's dollars">
+          <Input
+            type="number"
+            value={premium ?? ""}
+            placeholder="Scenario default"
+            onChange={(e) => onChange("annual_premium", parse(e.target.value))}
+          />
+        </FormField>
+        <FormField label="Annual Out-of-Pocket" hint="Deductibles, copays, Rx — today's dollars">
+          <Input
+            type="number"
+            value={oop ?? ""}
+            placeholder="Scenario default"
+            onChange={(e) => onChange("annual_out_of_pocket", parse(e.target.value))}
+          />
+        </FormField>
+      </div>
     </div>
   );
 }
@@ -434,12 +539,57 @@ function ExpensesSection({
 // ─── Tax Section ──────────────────────────────────────────────────
 
 function TaxSection({
-  tax,
+  profile,
   onChange,
 }: {
-  tax: TaxConfig;
+  profile: Profile;
   onChange: (field: string, value: number | string) => void;
 }) {
+  const tax = profile.tax;
+
+  // Live estimate of effective rates so the user can see what the engine will
+  // roughly apply given their salary + RSU + filing status + state. RSU vest
+  // is ordinary income and is included in the tax base — sell-to-cover is
+  // only a withholding mechanism at vest, not a separate tax.
+  const primarySalary = profile.income.primary.base_salary;
+  const primaryBonus = primarySalary * (profile.income.primary.bonus_pct / 100);
+  const spouseSalary = profile.income.spouse?.base_salary ?? 0;
+  const spouseBonus = spouseSalary * ((profile.income.spouse?.bonus_pct ?? 0) / 100);
+  const wages = primarySalary + primaryBonus + spouseSalary + spouseBonus;
+
+  const currentYear = new Date().getFullYear();
+  const rsuVestThisYear = (() => {
+    let total = 0;
+    for (const rsu of [profile.income.rsu, profile.income.spouse_rsu]) {
+      if (!rsu) continue;
+      for (const t of rsu.unvested_tranches || []) {
+        if (t.vest_year === currentYear) total += t.shares * rsu.current_price;
+      }
+    }
+    return total;
+  })();
+  const totalOrdinaryIncome = wages + rsuVestThisYear;
+
+  const preTaxDeductions =
+    profile.savings.primary.annual_401k_traditional +
+    profile.savings.primary.annual_hsa +
+    (profile.spouse
+      ? profile.savings.spouse.annual_401k_traditional + profile.savings.spouse.annual_hsa
+      : 0);
+
+  const taxEst = estimateYear1Taxes({
+    wages,
+    rsuVestIncome: rsuVestThisYear,
+    preTaxDeductions,
+    filingStatus: (tax.filing_status as FilingStatus) || "mfj",
+    state: profile.personal.state_of_residence || "",
+    stateOverridePct: tax.state_income_tax_pct || 0,
+  });
+
+  const fedPct = totalOrdinaryIncome > 0 ? (taxEst.federal / totalOrdinaryIncome) * 100 : 0;
+  const statePct = totalOrdinaryIncome > 0 ? (taxEst.state / totalOrdinaryIncome) * 100 : 0;
+  const ficaPct = totalOrdinaryIncome > 0 ? (taxEst.fica / totalOrdinaryIncome) * 100 : 0;
+
   return (
     <div className="bg-white rounded-lg border border-slate-200 p-6">
       <h3 className="text-lg font-semibold mb-2">Taxes</h3>
@@ -468,6 +618,37 @@ function TaxSection({
           <Input type="number" step="0.1" value={tax.state_income_tax_pct} onChange={(e) => onChange("state_income_tax_pct", parseFloat(e.target.value) || 0)} />
         </FormField>
       </div>
+
+      {totalOrdinaryIncome > 0 && (
+        <div className="mt-4 bg-slate-50 border border-slate-200 rounded-md p-3">
+          <div className="text-xs font-medium text-slate-600 mb-2">
+            Estimated effective rates on total ordinary income
+            {rsuVestThisYear > 0
+              ? ` (salary + bonus + $${Math.round(rsuVestThisYear).toLocaleString()} RSU vest)`
+              : " (salary + bonus)"}
+          </div>
+          <div className="grid grid-cols-3 gap-x-4 text-xs text-slate-600">
+            <div className="flex flex-col">
+              <span className="text-slate-500">Federal</span>
+              <span className="font-mono text-slate-800">~{fedPct.toFixed(1)}%</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-slate-500">State</span>
+              <span className="font-mono text-slate-800">~{statePct.toFixed(1)}%</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-slate-500">FICA (SS + Medicare)</span>
+              <span className="font-mono text-slate-800">~{ficaPct.toFixed(1)}%</span>
+            </div>
+          </div>
+          <p className="text-xs text-slate-400 mt-2">
+            2026 brackets, progressive federal calculation, includes
+            Additional Medicare (0.9% above {(({ mfj: "$250k MFJ", single: "$200k single", hoh: "$200k HoH" } as const))[(tax.filing_status as FilingStatus) || "mfj"]}).
+            SS caps at $172,800 of wages. Engine computation is authoritative;
+            this is a display-only approximation.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -476,6 +657,7 @@ function TaxSection({
 
 export function BasicFinancesPage() {
   const { data: profile, isLoading, error } = useProfile();
+  const { data: assets } = useAssets();
   const updateProfile = useUpdateProfile();
   const [local, setLocal] = useState<Profile | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -524,6 +706,18 @@ export function BasicFinancesPage() {
     setLocal((prev) => {
       if (!prev) return prev;
       return { ...prev, tax: { ...prev.tax, [field]: value } };
+    });
+    setDirty(true);
+  };
+
+  const updateHealthcareOverride = (field: keyof HealthcareOverride, value: number | null) => {
+    setLocal((prev) => {
+      if (!prev) return prev;
+      const current = prev.healthcare_override ?? { annual_premium: null, annual_out_of_pocket: null };
+      const next: HealthcareOverride = { ...current, [field]: value };
+      // Collapse to null when both fields are unset, to keep persisted shape tidy.
+      const allNull = next.annual_premium == null && next.annual_out_of_pocket == null;
+      return { ...prev, healthcare_override: allNull ? null : next };
     });
     setDirty(true);
   };
@@ -602,8 +796,10 @@ export function BasicFinancesPage() {
           }}
         />
         <SavingsSection savings={local.savings} income={local.income} hasSpouse={!!local.spouse} primaryName={local.personal.name || "Primary"} spouseName={local.spouse?.name || "Spouse"} onChange={updateSavings} />
-        <ExpensesSection expenses={local.expenses} onChange={updateExpenses} />
-        <TaxSection tax={local.tax} onChange={updateTax} />
+        <HealthcareOverrideSection override={local.healthcare_override} onChange={updateHealthcareOverride} />
+        <ExpensesSection expenses={local.expenses} profile={local} assets={assets} onChange={updateExpenses} />
+        <TaxSection profile={local} onChange={updateTax} />
+        <ReconciliationPanel profile={local} assets={assets} />
       </div>
 
       {updateProfile.isError && (
